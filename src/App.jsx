@@ -346,6 +346,40 @@ function StatusBadge({ status }) {
   );
 }
 
+// Per-line billing badge shown to clients — client-friendly status labels
+function LineBillingBadge({ letter, status }) {
+  const map = {
+    draft:         { bg:"rgba(55,79,104,0.25)",   color:"#526a84", label:"Processing"   },
+    submitted:     { bg:"rgba(245,158,11,0.12)",  color:"#fbbf24", label:"Under Review" },
+    approved:      { bg:"rgba(16,185,129,0.12)",  color:"#34d399", label:"Approved"     },
+    rejected:      { bg:"rgba(239,68,68,0.12)",   color:"#f87171", label:"Rejected"     },
+    client_billed: { bg:"rgba(59,130,246,0.12)",  color:"#60a5fa", label:"Invoice Sent" },
+    paid:          { bg:"rgba(16,185,129,0.22)",  color:"#6ee7b7", label:"Paid"         },
+  };
+  const s = map[status] || map.draft;
+  return (
+    <span style={{
+      display:"inline-flex", alignItems:"center", gap:5, padding:"0 7px",
+      height:18, borderRadius:3, fontFamily:"'Barlow Condensed',sans-serif",
+      fontSize:10, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase",
+      background:s.bg, color:s.color, border:`1px solid ${s.color}44`,
+      marginRight:4, marginBottom:3,
+    }}>
+      <span style={{ width:4, height:4, borderRadius:"50%", background:s.color, flexShrink:0 }} />
+      {letter} · {s.label}
+    </span>
+  );
+}
+
+function ClientLineBadges({ lines }) {
+  if (!lines || lines.length === 0) return <span style={{ fontSize:11, color:"var(--dim)" }}>—</span>;
+  return (
+    <div style={{ display:"flex", flexWrap:"wrap", gap:0 }}>
+      {lines.map(l => <LineBillingBadge key={l.line_letter} letter={l.line_letter} status={l.status} />)}
+    </div>
+  );
+}
+
 // ─── AUTH SCREEN ─────────────────────────────────────────────
 function AuthScreen({ onLogin }) {
   const [email, setEmail]       = useState("");
@@ -551,18 +585,36 @@ function RequestForm({ session, company, onSuccess }) {
 
 // ─── DASHBOARD ───────────────────────────────────────────────
 function Dashboard({ session, company, switchToForm }) {
-  const [requests, setRequests] = useState([]);
-  const [loading, setLoading]   = useState(true);
-  const [filter, setFilter]     = useState("all");
+  const [requests, setRequests]         = useState([]);
+  const [linesInvoiceMap, setLinesInvoiceMap] = useState({});
+  const [loading, setLoading]           = useState(true);
+  const [filter, setFilter]             = useState("all");
 
   const load = async () => {
     if (!company?.id) return;
     setLoading(true);
-    const { data } = await supabase
-      .from("service_requests").select("*")
-      .eq("company_id", company.id)
-      .order("created_at", { ascending: false });
-    setRequests(data || []);
+    const [{ data: srs }, { data: invs }] = await Promise.all([
+      supabase.from("service_requests").select("*")
+        .eq("company_id", company.id)
+        .order("created_at", { ascending: false }),
+      supabase.from("invoices")
+        .select("service_request_id, status, service_line_id, service_lines(line_letter)")
+        .eq("company_id", company.id),
+    ]);
+    setRequests(srs || []);
+
+    // Build map: sr_id → [{line_letter, status}] sorted by letter
+    const map = {};
+    for (const inv of (invs || [])) {
+      const srId = inv.service_request_id;
+      if (!srId || !inv.service_lines?.line_letter) continue;
+      if (!map[srId]) map[srId] = [];
+      map[srId].push({ line_letter: inv.service_lines.line_letter, status: inv.status });
+    }
+    for (const key of Object.keys(map)) {
+      map[key].sort((a, b) => a.line_letter.localeCompare(b.line_letter));
+    }
+    setLinesInvoiceMap(map);
     setLoading(false);
   };
 
@@ -625,21 +677,21 @@ function Dashboard({ session, company, switchToForm }) {
           <table>
             <thead>
               <tr>
-                <th>#</th>
+                <th>SR #</th>
                 <th>Date</th>
                 <th>Vehicle</th>
                 <th>VIN</th>
-                <th>Service Type</th>
                 <th>Mileage</th>
                 <th>Urgency</th>
+                <th>Billing</th>
                 <th>Status</th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((r, i) => (
+              {filtered.map((r) => (
                 <tr key={r.id}>
-                  <td style={{ color:"var(--dim)", fontSize:11, fontFamily:"monospace" }}>
-                    {String(i + 1).padStart(3, "0")}
+                  <td style={{ color:"var(--muted)", fontSize:11, fontFamily:"monospace", whiteSpace:"nowrap" }}>
+                    SR-{r.request_number}
                   </td>
                   <td style={{ color:"var(--soft)", whiteSpace:"nowrap", fontSize:11 }}>
                     {new Date(r.created_at).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" })}
@@ -653,11 +705,11 @@ function Dashboard({ session, company, switchToForm }) {
                     )}
                   </td>
                   <td className="mono">{r.vin || "—"}</td>
-                  <td style={{ fontSize:13 }}>{r.service_type}</td>
                   <td style={{ fontSize:12, color:"var(--soft)", fontFamily:"monospace" }}>
                     {r.mileage ? Number(r.mileage).toLocaleString() + " mi" : "—"}
                   </td>
                   <td><span className={`urg ${r.urgency}`}>{r.urgency}</span></td>
+                  <td><ClientLineBadges lines={linesInvoiceMap[r.id]} /></td>
                   <td><StatusBadge status={r.status} /></td>
                 </tr>
               ))}
