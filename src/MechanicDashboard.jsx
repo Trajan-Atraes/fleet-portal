@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { createClient } from "@supabase/supabase-js";
+import NotesLog from "./components/NotesLog";
+import ServiceLinesEditor from "./components/ServiceLinesEditor";
 
 const SUPABASE_URL = "https://kiayjlepwmdacojhpisq.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_b7zg8JgNWZuMjkG7_HnLeg_yylvj3MH";
@@ -30,10 +32,10 @@ const css = `
     --text:    #bfd0e2;
     --snow:    #dae7f2;
     --white:   #edf4fd;
-    --accent:     #0d9488;
-    --accent-hot: #14b8a6;
-    --accent-dim: rgba(13,148,136,0.10);
-    --accent-rim: rgba(13,148,136,0.22);
+    --accent:     #f59e0b;
+    --accent-hot: #fbbf24;
+    --accent-dim: rgba(245,158,11,0.10);
+    --accent-rim: rgba(245,158,11,0.22);
     --green:  #10b981; --green-dim:  rgba(16,185,129,0.12);
     --red:    #ef4444; --red-dim:    rgba(239,68,68,0.12);
     --blue:   #3b82f6; --blue-dim:   rgba(59,130,246,0.12);
@@ -61,7 +63,7 @@ const css = `
   @keyframes slideUp { from{opacity:0;transform:translateY(14px);} to{opacity:1;transform:translateY(0);} }
   .auth-logo { font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:900; letter-spacing:0.07em; text-transform:uppercase; color:var(--white); display:flex; align-items:center; gap:6px; margin-bottom:28px; }
   .auth-logo em { color:var(--accent); font-style:normal; }
-  .auth-logo .portal-tag { font-size:9px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; background:var(--accent-dim); color:var(--accent); border:1px solid var(--accent-rim); border-radius:3px; padding:2px 6px; }
+  .auth-logo .portal-tag { font-size:9px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; background:rgba(13,148,136,0.15); color:#2dd4bf; border:1px solid rgba(13,148,136,0.35); border-radius:3px; padding:2px 6px; }
   .auth-card h2 { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--snow); margin-bottom:4px; }
   .auth-card .sub { font-size:12px; color:var(--muted); margin-bottom:24px; }
 
@@ -76,7 +78,7 @@ const css = `
 
   /* ── BUTTONS ── */
   .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:8px 16px; border-radius:5px; font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; border:none; transition:all 0.15s; white-space:nowrap; }
-  .btn-primary { background:var(--accent); color:var(--white); }
+  .btn-primary { background:var(--accent); color:#000; }
   .btn-primary:hover:not(:disabled) { background:var(--accent-hot); }
   .btn-primary:active:not(:disabled) { transform:scale(0.97); }
   .btn-primary:disabled { opacity:0.4; cursor:not-allowed; }
@@ -96,7 +98,7 @@ const css = `
   .sidebar-header { height:var(--topbar-h); display:flex; align-items:center; padding:0 16px; border-bottom:1px solid var(--border); flex-shrink:0; }
   .sidebar-logo { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:900; letter-spacing:0.07em; text-transform:uppercase; color:var(--white); }
   .sidebar-logo em { color:var(--accent); font-style:normal; }
-  .sidebar-portal-tag { margin-left:8px; font-size:9px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; background:var(--accent-dim); color:var(--accent); border:1px solid var(--accent-rim); border-radius:3px; padding:2px 6px; }
+  .sidebar-portal-tag { margin-left:8px; font-size:9px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; background:rgba(13,148,136,0.15); color:#2dd4bf; border:1px solid rgba(13,148,136,0.35); border-radius:3px; padding:2px 6px; }
   .sidebar-nav { flex:1; padding:8px; display:flex; flex-direction:column; gap:2px; overflow-y:auto; }
   .sidebar-section-label { font-size:9px; font-weight:700; letter-spacing:0.22em; text-transform:uppercase; color:var(--dim); padding:10px 8px 4px; }
   .nav-item { display:flex; align-items:center; gap:9px; padding:0 10px; height:32px; border-radius:4px; font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; border:none; background:transparent; color:var(--muted); transition:all 0.15s; width:100%; text-align:left; }
@@ -139,8 +141,8 @@ const css = `
   /* ── BADGES ── */
   .badge { display:inline-flex; align-items:center; gap:5px; padding:0 7px; height:18px; border-radius:3px; font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; white-space:nowrap; }
   .badge-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
-  .badge.pending     { background:rgba(139,92,246,0.12); color:#a78bfa; border:1px solid rgba(139,92,246,0.22); }
-  .badge.pending .badge-dot     { background:#a78bfa; }
+  .badge.pending     { background:rgba(245,158,11,0.12); color:#fbbf24; border:1px solid rgba(245,158,11,0.22); }
+  .badge.pending .badge-dot     { background:#fbbf24; }
   .badge.in_progress { background:rgba(59,130,246,0.12); color:#60a5fa; border:1px solid rgba(59,130,246,0.22); }
   .badge.in_progress .badge-dot { background:#60a5fa; animation:pulse 1.5s infinite; }
   .badge.completed   { background:rgba(16,185,129,0.12); color:#34d399; border:1px solid rgba(16,185,129,0.22); }
@@ -160,7 +162,7 @@ const css = `
   .filters { display:flex; gap:5px; flex-wrap:wrap; }
   .filter-btn { font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; padding:0 11px; height:24px; border-radius:3px; cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--muted); transition:all 0.15s; display:flex; align-items:center; }
   .filter-btn:hover { border-color:var(--rim); color:var(--body); }
-  .filter-btn.active { background:var(--accent); border-color:var(--accent); color:var(--white); }
+  .filter-btn.active { background:var(--accent); border-color:var(--accent); color:#000; }
   .search-input { background:var(--raised); border:1px solid var(--border); border-radius:4px; padding:0 10px; height:26px; font-size:12px; color:var(--text); outline:none; width:200px; font-family:'Barlow',sans-serif; }
   .search-input::placeholder { color:var(--dim); }
   .search-input:focus { border-color:var(--rim); }
@@ -169,6 +171,7 @@ const css = `
   .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.78); display:flex; align-items:center; justify-content:center; z-index:500; padding:20px; animation:fadeIn 0.18s ease; }
   @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
   .modal { background:var(--raised); border:1px solid var(--border); border-radius:7px; width:100%; max-width:520px; max-height:90vh; overflow-y:auto; }
+  @media (min-width:900px) { .modal { max-width:min(83vw,1100px); max-height:88vh; } }
   .modal-head { padding:18px 22px 14px; display:flex; align-items:flex-start; justify-content:space-between; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--raised); z-index:1; }
   .modal-head h3 { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:900; text-transform:uppercase; letter-spacing:0.06em; color:var(--snow); }
   .modal-head-sub { font-size:11px; color:var(--muted); margin-top:2px; }
@@ -256,7 +259,7 @@ function StatusBadge({ status }) {
   );
 }
 
-function InvoiceBillingBadge({ status }) {
+function InvoiceBillingBadge({ status, label }) {
   const map = {
     draft:         { color:"#526a84",  bg:"rgba(55,79,104,0.3)",    label:"Draft"      },
     submitted:     { color:"#fbbf24",  bg:"rgba(245,158,11,0.12)",  label:"Submitted"  },
@@ -272,6 +275,7 @@ function InvoiceBillingBadge({ status }) {
       Not Invoiced
     </span>
   );
+  const displayLabel = label ? `${label} · ${s.label}` : s.label;
   return (
     <span style={{
       display:"inline-flex", alignItems:"center", gap:5, padding:"0 7px",
@@ -280,37 +284,48 @@ function InvoiceBillingBadge({ status }) {
       background:s.bg, color:s.color, border:`1px solid ${s.color}44`,
     }}>
       <span style={{ width:5, height:5, borderRadius:"50%", background:s.color, flexShrink:0 }} />
-      {s.label}
+      {displayLabel}
     </span>
   );
 }
 
+// ─── INVOICE LINE BADGES (multi-line summary) ─────────────────
+function LineInvoiceBadges({ linesInvoiceData }) {
+  if (!linesInvoiceData || linesInvoiceData.length === 0) {
+    return (
+      <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:10, fontWeight:700,
+        letterSpacing:"0.1em", textTransform:"uppercase", color:"var(--muted)" }}>
+        Not Invoiced
+      </span>
+    );
+  }
+  return (
+    <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
+      {linesInvoiceData.map(({ line_letter, status }) => (
+        <InvoiceBillingBadge key={line_letter} status={status} label={`Line ${line_letter}`} />
+      ))}
+    </div>
+  );
+}
+
 // ─── UPDATE MODAL ─────────────────────────────────────────────
-function UpdateModal({ request, mechanic, companiesMap, invoiceStatus, onClose, onUpdate }) {
-  const [status, setStatus] = useState(request.status);
-  const [notes, setNotes]   = useState(request.notes || "");
-  const [saving, setSaving] = useState(false);
-  const [saved, setSaved]   = useState(false);
+function UpdateModal({ request, mechanic, companiesMap, linesInvoiceData, onClose, onUpdate }) {
+  const [serviceLines,  setServiceLines]  = useState([]);
+  const [loadingLines,  setLoadingLines]  = useState(true);
   const [vehicleStatus, setVehicleStatus] = useState(null);
 
   useEffect(() => {
-    if (!request.vehicle_registry_id) return;
-    supabase.from("vehicles").select("status").eq("id", request.vehicle_registry_id).maybeSingle()
-      .then(({ data }) => { if (data) setVehicleStatus(data.status); });
-  }, [request.vehicle_registry_id]);
-
-  const handleSave = async () => {
-    setSaving(true);
-    const { error } = await supabase.from("service_requests").update({
-      status, notes,
-      updated_at:       new Date().toISOString(),
-      updated_by_id:    mechanic.id,
-      updated_by_name:  mechanic.display_name || mechanic.name,
-      updated_by_email: mechanic.email,
-    }).eq("id", request.id);
-    setSaving(false);
-    if (!error) { setSaved(true); setTimeout(() => { setSaved(false); onUpdate(); }, 1200); }
-  };
+    if (request.vehicle_registry_id) {
+      supabase.from("vehicles").select("status").eq("id", request.vehicle_registry_id).maybeSingle()
+        .then(({ data }) => { if (data) setVehicleStatus(data.status); });
+    }
+    setLoadingLines(true);
+    supabase.from("service_lines")
+      .select("id, line_letter, service_name, notes, parts, is_completed")
+      .eq("sr_id", request.id)
+      .order("line_letter")
+      .then(({ data }) => { setServiceLines(data || []); setLoadingLines(false); });
+  }, [request.id, request.vehicle_registry_id]);
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
@@ -325,6 +340,7 @@ function UpdateModal({ request, mechanic, companiesMap, invoiceStatus, onClose, 
           <button className="modal-close" onClick={onClose}>×</button>
         </div>
         <div className="modal-body">
+          {/* Vehicle block */}
           <div className="vehicle-block">
             <div className="vehicle-block-eyebrow">Vehicle</div>
             <div className="vehicle-block-id">{request.vehicle_id}</div>
@@ -344,50 +360,63 @@ function UpdateModal({ request, mechanic, companiesMap, invoiceStatus, onClose, 
             </div>
           )}
 
+          {/* Detail grid */}
           <div className="detail-grid">
-            <span className="detail-label">Company</span>
+            <span className="detail-label">DSP</span>
             <span className="detail-value">{companiesMap[request.company_id] || "—"}</span>
-            <span className="detail-label">Service</span>
-            <span className="detail-value">{request.service_type}</span>
             <span className="detail-label">VIN</span>
             <span className="detail-value mono">{request.vin || "—"}</span>
             <span className="detail-label">Urgency</span>
             <span className="detail-value"><span className={`urg ${request.urgency}`}>{request.urgency?.toUpperCase()}</span></span>
+            <span className="detail-label">Status</span>
+            <span className="detail-value"><StatusBadge status={request.status} /></span>
             <span className="detail-label">Updated At</span>
             <span className="detail-value" style={{fontSize:12}}>
               {request.updated_at ? new Date(request.updated_at).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }) + " " + new Date(request.updated_at).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit" }) : "—"}
             </span>
             <span className="detail-label">Invoice</span>
-            <span className="detail-value"><InvoiceBillingBadge status={invoiceStatus} /></span>
+            <span className="detail-value"><LineInvoiceBadges linesInvoiceData={linesInvoiceData} /></span>
           </div>
 
+          {/* Customer Reported Issue */}
           {request.description && (
-            <div style={{ marginBottom:14 }}>
-              <div style={{ fontSize:10, fontWeight:600, letterSpacing:"0.18em", textTransform:"uppercase", color:"var(--muted)", marginBottom:6 }}>Client Description</div>
-              <div style={{ background:"var(--plate)", borderRadius:5, padding:"10px 12px", fontSize:13, color:"var(--body)", lineHeight:1.6, border:"1px solid var(--border)" }}>{request.description}</div>
-            </div>
+            <>
+              <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.2em", textTransform:"uppercase", color:"var(--accent)", marginBottom:6 }}>
+                Customer Reported Issue
+              </div>
+              <div style={{ background:"var(--plate)", borderRadius:5, padding:"10px 12px", fontSize:13, color:"var(--body)", lineHeight:1.6, border:"1px solid rgba(245,158,11,0.2)", marginBottom:14 }}>
+                {request.description}
+              </div>
+            </>
           )}
 
           <hr className="divider" />
 
-          <div className="field">
-            <label>Update Status</label>
-            <select value={status} onChange={e => setStatus(e.target.value)}>
-              {STATUS_OPTIONS.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-            </select>
-          </div>
-          <div className="field">
-            <label>Work Notes</label>
-            <textarea value={notes} onChange={e => setNotes(e.target.value)} placeholder="Add work notes…" />
+          {/* Service Lines editor */}
+          <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.2em", textTransform:"uppercase", color:"var(--muted)", marginBottom:12 }}>
+            Service Lines
           </div>
 
-          {saved && <div className="success-box">Saved successfully</div>}
+          {loadingLines ? (
+            <div style={{ fontSize:12, color:"var(--muted)", padding:"12px 0" }}>Loading lines…</div>
+          ) : (
+            <ServiceLinesEditor
+              srId={request.id}
+              initialLines={serviceLines}
+              mechanic={mechanic}
+              srStatus={request.status}
+              onSaved={() => onUpdate()}
+              onSubmitted={() => { onUpdate(); onClose(); }}
+            />
+          )}
 
-          <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
-            <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-              {saving ? "Saving…" : "Save Changes"}
-            </button>
+          <hr className="divider" />
+
+          {/* Notes log */}
+          <NotesLog srId={request.id} currentUserName={mechanic.display_name || mechanic.name} isAdmin={false} />
+
+          <div style={{ display:"flex", justifyContent:"flex-end", marginTop:14 }}>
+            <button className="btn btn-ghost" onClick={onClose}>Close</button>
           </div>
         </div>
       </div>
@@ -401,13 +430,14 @@ function NewRequestModal({ mechanic, onClose, onCreated }) {
   const [form, setForm] = useState({
     company_id:"", vehicle_id:"", vin:"",
     vehicle_make:"", vehicle_model:"", vehicle_year:"", mileage:"",
-    service_type:"", urgency:"medium", description:"",
+    urgency:"medium", description:"",
   });
   const [saving, setSaving]             = useState(false);
   const [error, setError]               = useState("");
   const [scanning, setScanning]         = useState("");
   const [scanResult, setScanResult]     = useState(null);
   const [scanError, setScanError]       = useState("");
+  const [duplicateWarning, setDuplicateWarning] = useState(null); // null=unchecked, []|[...]=checked
   // registry state
   const [lookingUp, setLookingUp]           = useState(false);
   const [registryVehicle, setRegistryVehicle] = useState(null); // null=not looked up, false=not found, obj=found
@@ -418,7 +448,10 @@ function NewRequestModal({ mechanic, onClose, onCreated }) {
     supabase.from("companies").select("id, name").order("name").then(({ data }) => setCompanies(data || []));
   }, []);
 
-  const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
+  const f = (k, v) => {
+    setForm(p => ({ ...p, [k]: v }));
+    if (["vin", "mileage"].includes(k)) setDuplicateWarning(null);
+  };
 
   const handleCompanyChange = (val) => { f("company_id", val); setRegistryVehicle(null); setSaveToRegistry(false); };
   const handleVehicleIdChange = (val) => { f("vehicle_id", val); setRegistryVehicle(null); setSaveToRegistry(false); };
@@ -478,16 +511,32 @@ function NewRequestModal({ mechanic, onClose, onCreated }) {
     if (!scanResult) return;
     setForm(p => ({ ...p, vin: scanResult.vin, vehicle_make: scanResult.make || p.vehicle_make, vehicle_model: scanResult.model || p.vehicle_model, vehicle_year: scanResult.year || p.vehicle_year }));
     setScanResult(null);
+    setDuplicateWarning(null);
   };
 
   const handleSave = async () => {
-    if (!form.company_id || !form.vehicle_id || !form.service_type || !form.urgency) {
-      setError("Company, Vehicle ID, Service Type, and Urgency are required."); return;
+    if (!form.company_id || !form.vehicle_id || !form.urgency) {
+      setError("Company, Vehicle ID, and Urgency are required."); return;
     }
     if (registryVehicle && registryVehicle.status === "Retired") {
       setError("This vehicle is retired and cannot be assigned to a new service request."); return;
     }
     setSaving(true); setError("");
+
+    // Duplicate check — only when VIN + mileage are both present
+    if (form.vin && form.mileage && duplicateWarning === null) {
+      const { data: dupes } = await supabase
+        .from("service_requests")
+        .select("id, request_number, status")
+        .eq("vin", form.vin.trim())
+        .eq("mileage", parseInt(form.mileage))
+        .in("status", ["pending", "in_progress"]);
+      if (dupes && dupes.length > 0) {
+        setDuplicateWarning(dupes);
+        setSaving(false);
+        return;
+      }
+    }
 
     let vehicleRegistryId = registryVehicle ? registryVehicle.id : null;
 
@@ -513,7 +562,6 @@ function NewRequestModal({ mechanic, onClose, onCreated }) {
       vehicle_model:       form.vehicle_model,
       vehicle_year:        form.vehicle_year,
       mileage:             form.mileage ? parseInt(form.mileage) : null,
-      service_type:        form.service_type,
       urgency:             form.urgency,
       description:         form.description,
       status:              "pending",
@@ -542,6 +590,23 @@ function NewRequestModal({ mechanic, onClose, onCreated }) {
         <div className="modal-body">
           {error && <div className="error-box">{error}</div>}
 
+          {duplicateWarning && duplicateWarning.length > 0 && (
+            <div style={{ background:"var(--amber-dim)", border:"1px solid rgba(245,158,11,0.35)", borderRadius:6, padding:"12px 14px", marginBottom:14 }}>
+              <div style={{ fontWeight:700, color:"var(--amber)", fontSize:13, marginBottom:6 }}>⚠ Possible Duplicate Request</div>
+              <div style={{ fontSize:12, color:"var(--body)", marginBottom:6 }}>
+                An active service request with the same VIN, service type, and mileage already exists:
+              </div>
+              {duplicateWarning.map(sr => (
+                <div key={sr.id} style={{ fontSize:12, color:"var(--soft)", marginBottom:2 }}>
+                  SR-{sr.request_number} — <span style={{ textTransform:"capitalize" }}>{sr.status.replace("_", " ")}</span>
+                </div>
+              ))}
+              <div style={{ fontSize:12, color:"var(--muted)", marginTop:8 }}>
+                Click <strong>Submit Anyway</strong> to create this request, or edit the VIN, service type, or mileage to dismiss.
+              </div>
+            </div>
+          )}
+
           {scanResult && (
             <div style={{ background:"var(--plate)", border:"1px solid var(--accent-rim)", borderRadius:6, padding:"12px 14px", marginBottom:14 }}>
               <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.18em", textTransform:"uppercase", color:"var(--accent)", marginBottom:8 }}>VIN Scan Result — Confirm</div>
@@ -560,7 +625,7 @@ function NewRequestModal({ mechanic, onClose, onCreated }) {
           {scanError && <div className="error-box" style={{ marginBottom:10 }}>{scanError}</div>}
 
           <div className="field">
-            <label>Company *</label>
+            <label>DSP *</label>
             <select value={form.company_id} onChange={e => handleCompanyChange(e.target.value)}>
               <option value="">— Select Company —</option>
               {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -650,22 +715,13 @@ function NewRequestModal({ mechanic, onClose, onCreated }) {
               <input type="number" value={form.mileage} onChange={e => f("mileage", e.target.value)} placeholder="85000" />
             </div>
           </div>
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
-            <div className="field">
-              <label>Service Type *</label>
-              <select value={form.service_type} onChange={e => f("service_type", e.target.value)}>
-                <option value="">— Select —</option>
-                {SERVICE_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div className="field">
-              <label>Urgency *</label>
-              <select value={form.urgency} onChange={e => f("urgency", e.target.value)}>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-            </div>
+          <div className="field">
+            <label>Urgency *</label>
+            <select value={form.urgency} onChange={e => f("urgency", e.target.value)}>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
           </div>
           <div className="field">
             <label>Description</label>
@@ -674,7 +730,7 @@ function NewRequestModal({ mechanic, onClose, onCreated }) {
           <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
             <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
             <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
-              {saving ? "Creating…" : "Create Request"}
+              {saving ? "Creating…" : duplicateWarning && duplicateWarning.length > 0 ? "Submit Anyway" : "Create Request"}
             </button>
           </div>
         </div>
@@ -692,22 +748,26 @@ function RequestsView({ mechanic }) {
   const [search, setSearch]             = useState("");
   const [selected, setSelected]               = useState(null);
   const [showNewRequest, setShowNewRequest]   = useState(false);
-  const [invoiceStatusMap, setInvoiceStatusMap] = useState({});
+  const [linesInvoiceMap, setLinesInvoiceMap] = useState({}); // sr_id → [{line_letter, status}]
 
   const load = async () => {
     setLoading(true);
     const [{ data }, { data: cos }, { data: invs }] = await Promise.all([
       supabase.from("service_requests").select("*").order("created_at", { ascending: false }),
       supabase.from("companies").select("id, name"),
-      supabase.from("invoices").select("service_request_id, status"),
+      supabase.from("invoices").select("service_request_id, status, service_line_id, service_lines(line_letter)"),
     ]);
     const map = {};
     (cos || []).forEach(c => { map[c.id] = c.name; });
     setCompaniesMap(map);
     setRequests(data || []);
     const imap = {};
-    (invs || []).forEach(i => { if (i.service_request_id) imap[i.service_request_id] = i.status; });
-    setInvoiceStatusMap(imap);
+    (invs || []).forEach(i => {
+      if (!i.service_request_id) return;
+      if (!imap[i.service_request_id]) imap[i.service_request_id] = [];
+      imap[i.service_request_id].push({ line_letter: i.service_lines?.line_letter || "?", status: i.status });
+    });
+    setLinesInvoiceMap(imap);
     setLoading(false);
   };
 
@@ -820,7 +880,7 @@ function RequestsView({ mechanic }) {
                   <td style={{ fontSize:13 }}>{r.service_type}</td>
                   <td><span className={`urg ${r.urgency}`}>{r.urgency}</span></td>
                   <td><StatusBadge status={r.status} /></td>
-                  <td><InvoiceBillingBadge status={invoiceStatusMap[r.id]} /></td>
+                  <td><LineInvoiceBadges linesInvoiceData={linesInvoiceMap[r.id]} /></td>
                   <td>
                     {r.updated_by_name ? (
                       <div>
@@ -843,9 +903,9 @@ function RequestsView({ mechanic }) {
 
       {selected && (
         <UpdateModal request={selected} mechanic={mechanic} companiesMap={companiesMap}
-          invoiceStatus={invoiceStatusMap[selected.id]}
+          linesInvoiceData={linesInvoiceMap[selected.id]}
           onClose={() => setSelected(null)}
-          onUpdate={() => { load(); setSelected(null); }} />
+          onUpdate={() => load()} />
       )}
 
       {showNewRequest && (
@@ -935,7 +995,7 @@ export default function MechanicApp() {
             </div>
             <nav className="sidebar-nav">
               <div className="sidebar-section-label">Navigation</div>
-              <button className="nav-item active" onClick={() => setSidebarOpen(false)}>
+              <button className="nav-item active" onClick={() => { if (window.innerWidth <= 768) setSidebarOpen(false); }}>
                 <IcoWrench /> Service Requests
               </button>
             </nav>

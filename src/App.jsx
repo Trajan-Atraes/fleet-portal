@@ -222,8 +222,8 @@ const css = `
     font-weight:700; letter-spacing:0.12em; text-transform:uppercase; white-space:nowrap;
   }
   .badge-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
-  .badge.pending     { background:rgba(139,92,246,0.12); color:#a78bfa; border:1px solid rgba(139,92,246,0.22); }
-  .badge.pending .badge-dot     { background:#a78bfa; }
+  .badge.pending     { background:rgba(245,158,11,0.12); color:#fbbf24; border:1px solid rgba(245,158,11,0.22); }
+  .badge.pending .badge-dot     { background:#fbbf24; }
   .badge.in_progress { background:rgba(59,130,246,0.12); color:#60a5fa; border:1px solid rgba(59,130,246,0.22); }
   .badge.in_progress .badge-dot { background:#60a5fa; animation:pulse 1.5s infinite; }
   .badge.completed   { background:rgba(16,185,129,0.12); color:#34d399; border:1px solid rgba(16,185,129,0.22); }
@@ -420,18 +420,38 @@ const SERVICE_TYPES = [
 function RequestForm({ session, company, onSuccess }) {
   const [form, setForm] = useState({
     vehicle_id:"", vin:"", vehicle_make:"", vehicle_model:"",
-    vehicle_year:"", service_type:"", urgency:"medium", description:"", mileage:"",
+    vehicle_year:"", urgency:"medium", description:"", mileage:"",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
   const [success, setSuccess] = useState(false);
-  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const [duplicateWarning, setDuplicateWarning] = useState(null); // null=unchecked, []|[...]=checked
+  const set = (k, v) => {
+    setForm(f => ({ ...f, [k]: v }));
+    if (["vin", "mileage"].includes(k)) setDuplicateWarning(null);
+  };
 
   const handleSubmit = async () => {
-    if (!form.vehicle_id || !form.service_type || !form.description) {
-      setError("Please fill in all required fields."); return;
+    if (!form.vehicle_id || !form.description) {
+      setError("Please fill in Vehicle ID and describe the issue."); return;
     }
     setLoading(true); setError("");
+
+    // Duplicate check — only when VIN + mileage are both present
+    if (form.vin && form.mileage && duplicateWarning === null) {
+      const { data: dupes } = await supabase
+        .from("service_requests")
+        .select("id, request_number, status")
+        .eq("vin", form.vin.trim())
+        .eq("mileage", parseInt(form.mileage))
+        .in("status", ["pending", "in_progress"]);
+      if (dupes && dupes.length > 0) {
+        setDuplicateWarning(dupes);
+        setLoading(false);
+        return;
+      }
+    }
+
     const { error: err } = await supabase.from("service_requests").insert({
       ...form,
       client_id: session.user.id,
@@ -442,7 +462,7 @@ function RequestForm({ session, company, onSuccess }) {
     setLoading(false);
     if (err) { setError(err.message); return; }
     setSuccess(true);
-    setForm({ vehicle_id:"", vin:"", vehicle_make:"", vehicle_model:"", vehicle_year:"", service_type:"", urgency:"medium", description:"", mileage:"" });
+    setForm({ vehicle_id:"", vin:"", vehicle_make:"", vehicle_model:"", vehicle_year:"", urgency:"medium", description:"", mileage:"" });
     setTimeout(() => { setSuccess(false); onSuccess(); }, 2000);
   };
 
@@ -457,6 +477,23 @@ function RequestForm({ session, company, onSuccess }) {
 
       {error   && <div className="error-box">{error}</div>}
       {success && <div className="success-box">Request submitted — redirecting to dashboard…</div>}
+
+      {duplicateWarning && duplicateWarning.length > 0 && (
+        <div style={{ background:"var(--amber-dim)", border:"1px solid rgba(245,158,11,0.35)", borderRadius:6, padding:"12px 14px", marginBottom:14 }}>
+          <div style={{ fontWeight:700, color:"var(--amber)", fontSize:13, marginBottom:6 }}>⚠ Possible Duplicate Request</div>
+          <div style={{ fontSize:12, color:"var(--body)", marginBottom:6 }}>
+            An active service request with the same VIN, service type, and mileage already exists:
+          </div>
+          {duplicateWarning.map(sr => (
+            <div key={sr.id} style={{ fontSize:12, color:"var(--soft)", marginBottom:2 }}>
+              SR-{sr.request_number} — <span style={{ textTransform:"capitalize" }}>{sr.status.replace("_", " ")}</span>
+            </div>
+          ))}
+          <div style={{ fontSize:12, color:"var(--muted)", marginTop:8 }}>
+            Click <strong>Submit Anyway</strong> to create this request, or edit the VIN, service type, or mileage to dismiss.
+          </div>
+        </div>
+      )}
 
       <div className="card">
         <div className="form-grid">
@@ -484,13 +521,6 @@ function RequestForm({ session, company, onSuccess }) {
             <label>Year</label>
             <input value={form.vehicle_year} onChange={e => set("vehicle_year", e.target.value)} placeholder="e.g. 2021" />
           </div>
-          <div className="field">
-            <label>Service Type <span style={{color:"var(--red)"}}>*</span></label>
-            <select value={form.service_type} onChange={e => set("service_type", e.target.value)}>
-              <option value="">Select a service type…</option>
-              {SERVICE_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
           <div className="field full">
             <label>Urgency</label>
             <div className="urgency-group">
@@ -511,7 +541,7 @@ function RequestForm({ session, company, onSuccess }) {
         </div>
         <div style={{ display:"flex", justifyContent:"flex-end", marginTop:4 }}>
           <button className="btn btn-primary" onClick={handleSubmit} disabled={loading}>
-            {loading ? "Submitting…" : "Submit Request"}
+            {loading ? "Submitting…" : duplicateWarning && duplicateWarning.length > 0 ? "Submit Anyway" : "Submit Request"}
           </button>
         </div>
       </div>
