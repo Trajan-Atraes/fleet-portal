@@ -749,25 +749,35 @@ function RequestsView({ mechanic }) {
   const [selected, setSelected]               = useState(null);
   const [showNewRequest, setShowNewRequest]   = useState(false);
   const [linesInvoiceMap, setLinesInvoiceMap] = useState({}); // sr_id → [{line_letter, status}]
+  const [srNamesMap, setSrNamesMap]           = useState({}); // sr_id → "Brake Job / Oil Change"
 
   const load = async () => {
     setLoading(true);
     const [{ data }, { data: cos }, { data: invs }] = await Promise.all([
       supabase.from("service_requests").select("*").order("created_at", { ascending: false }),
       supabase.from("companies").select("id, name"),
-      supabase.from("invoices").select("service_request_id, status, service_line_id, service_lines(line_letter)"),
+      supabase.from("invoices").select("service_request_id, status, service_line_id, service_lines(line_letter, service_name)"),
     ]);
     const map = {};
     (cos || []).forEach(c => { map[c.id] = c.name; });
     setCompaniesMap(map);
     setRequests(data || []);
     const imap = {};
+    const nmap = {};
     (invs || []).forEach(i => {
       if (!i.service_request_id) return;
       if (!imap[i.service_request_id]) imap[i.service_request_id] = [];
       imap[i.service_request_id].push({ line_letter: i.service_lines?.line_letter || "?", status: i.status });
+      const sn = i.service_lines?.service_name;
+      if (sn) {
+        if (!nmap[i.service_request_id]) nmap[i.service_request_id] = new Set();
+        nmap[i.service_request_id].add(sn);
+      }
     });
+    const namesMap = {};
+    for (const [k, v] of Object.entries(nmap)) namesMap[k] = [...v].join(" / ");
     setLinesInvoiceMap(imap);
+    setSrNamesMap(namesMap);
     setLoading(false);
   };
 
@@ -788,7 +798,7 @@ function RequestsView({ mechanic }) {
       `sr-${r.request_number}`.includes(q) ||
       String(r.request_number).includes(q) ||
       r.vehicle_id?.toLowerCase().includes(q) ||
-      r.service_type?.toLowerCase().includes(q) ||
+      (srNamesMap[r.id] || r.service_type || "").toLowerCase().includes(q) ||
       r.vehicle_make?.toLowerCase().includes(q) ||
       r.vehicle_model?.toLowerCase().includes(q) ||
       r.vin?.toLowerCase().includes(q) ||
@@ -845,7 +855,7 @@ function RequestsView({ mechanic }) {
                 <th>Company</th>
                 <th>Vehicle</th>
                 <th>VIN</th>
-                <th>Service Type</th>
+                <th>Service</th>
                 <th>Urgency</th>
                 <th>Status</th>
                 <th>Invoice</th>
@@ -877,7 +887,7 @@ function RequestsView({ mechanic }) {
                     )}
                   </td>
                   <td className="mono">{r.vin || "—"}</td>
-                  <td style={{ fontSize:13 }}>{r.service_type}</td>
+                  <td style={{ fontSize:13, color:"var(--body)" }}>{srNamesMap[r.id] || r.service_type || <span style={{ color:"var(--dim)" }}>—</span>}</td>
                   <td><span className={`urg ${r.urgency}`}>{r.urgency}</span></td>
                   <td><StatusBadge status={r.status} /></td>
                   <td><LineInvoiceBadges linesInvoiceData={linesInvoiceMap[r.id]} /></td>

@@ -122,7 +122,7 @@ function InvoiceBuilder({ onSaved, onCancel }) {
   });
   const [services, setServices] = useState([{
     name:"", labor_hours:"", labor_rate:String(DEFAULT_RATE),
-    parts:[{ description:"", quantity:"1", rate:"" }],
+    parts:[{ description:"Diagnostic Fee", quantity:"1", rate:"" }],
   }]);
   const [billToContacts, setBillToContacts] = useState([]);
   const [saving, setSaving]       = useState(false);
@@ -1149,7 +1149,7 @@ export default function Billing({ adminDisplayName }) {
   const load = async () => {
     setLoading(true);
     const [{ data: invs }, { data: cos }, { data: reqs }, { data: btc }] = await Promise.all([
-      supabase.from("invoices").select("*, service_lines(line_letter)").order("created_at",{ascending:false}),
+      supabase.from("invoices").select("*, service_lines(line_letter, service_name)").order("created_at",{ascending:false}),
       supabase.from("companies").select("id,name").order("name"),
       supabase.from("service_requests").select("id,request_number,status"),
       supabase.from("bill_to_contacts").select("*").order("name"),
@@ -1189,7 +1189,7 @@ export default function Billing({ adminDisplayName }) {
 
   const filtered = invoices
     .filter(i => filter === "all" || (filter === "paid" ? (i.status === "paid" || i.status === "client_billed") : i.status === filter))
-    .filter(i => !serviceFilter || i.service_type === serviceFilter)
+    .filter(i => !serviceFilter || (i.service_lines?.service_name || i.service_type) === serviceFilter)
     .filter(i => {
       if (!targetFilter) return true;
       if (i.bill_to_id) return i.bill_to_id === targetFilter;
@@ -1331,9 +1331,12 @@ export default function Billing({ adminDisplayName }) {
                   </td>
                   <td className="mono">{inv.vin || "—"}</td>
                   <td style={{ fontSize:12 }}>
-                    {inv.service_type
-                      ? <span className="clickable-val" onClick={e => { e.stopPropagation(); setServiceFilter(inv.service_type); }}>{inv.service_type}</span>
-                      : "—"}
+                    {(() => {
+                      const svcLabel = inv.service_lines?.service_name || inv.service_type || null;
+                      return svcLabel
+                        ? <span className="clickable-val" onClick={e => { e.stopPropagation(); setServiceFilter(svcLabel); }}>{svcLabel}</span>
+                        : <span style={{ color:"var(--muted)" }}>—</span>;
+                    })()}
                   </td>
                   <td style={{ fontSize:12 }}>
                     {(() => {

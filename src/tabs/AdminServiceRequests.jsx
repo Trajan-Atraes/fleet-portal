@@ -533,6 +533,7 @@ export default function AllRequests({ adminDisplayName }) {
   const [search, setSearch]                   = useState("");
   const [showNewRequest, setShowNewRequest]   = useState(false);
   const [linesInvoiceMap, setLinesInvoiceMap] = useState({}); // sr_id → [{line_letter, status}]
+  const [srNamesMap, setSrNamesMap]           = useState({}); // sr_id → "Brake Job / Oil Change"
   const [sortCol, setSortCol] = useState("created_at");
   const [sortDir, setSortDir] = useState("desc");
 
@@ -546,19 +547,29 @@ export default function AllRequests({ adminDisplayName }) {
     const [{ data }, { data: cos }, { data: invs }] = await Promise.all([
       supabase.from("service_requests").select("*").order("created_at", { ascending: false }),
       supabase.from("companies").select("id, name"),
-      supabase.from("invoices").select("service_request_id, status, service_line_id, service_lines(line_letter)"),
+      supabase.from("invoices").select("service_request_id, status, service_line_id, service_lines(line_letter, service_name)"),
     ]);
     const map = {};
     (cos || []).forEach(c => { map[c.id] = c.name; });
     setCompaniesMap(map);
     setRequests(data || []);
     const imap = {};
+    const nmap = {}; // sr_id → Set of service names
     (invs || []).forEach(i => {
       if (!i.service_request_id) return;
       if (!imap[i.service_request_id]) imap[i.service_request_id] = [];
       imap[i.service_request_id].push({ line_letter: i.service_lines?.line_letter || "?", status: i.status });
+      const sn = i.service_lines?.service_name;
+      if (sn) {
+        if (!nmap[i.service_request_id]) nmap[i.service_request_id] = new Set();
+        nmap[i.service_request_id].add(sn);
+      }
     });
+    // Convert Sets to display strings
+    const namesMap = {};
+    for (const [k, v] of Object.entries(nmap)) namesMap[k] = [...v].join(" / ");
     setLinesInvoiceMap(imap);
+    setSrNamesMap(namesMap);
     setLoading(false);
   };
 
@@ -574,13 +585,14 @@ export default function AllRequests({ adminDisplayName }) {
 
   const filtered = requests.filter(r => {
     const matchStatus = filter === "all" || r.status === filter;
-    const matchService = !serviceFilter || r.service_type === serviceFilter;
+    const srNames = srNamesMap[r.id] || r.service_type || "";
+    const matchService = !serviceFilter || srNames.split(" / ").includes(serviceFilter);
     const q = search.toLowerCase();
     const matchSearch = !q ||
       `sr-${r.request_number}`.includes(q) ||
       String(r.request_number).includes(q) ||
       r.vehicle_id?.toLowerCase().includes(q) ||
-      r.service_type?.toLowerCase().includes(q) ||
+      srNames.toLowerCase().includes(q) ||
       r.vehicle_make?.toLowerCase().includes(q) ||
       r.vehicle_model?.toLowerCase().includes(q) ||
       r.vin?.toLowerCase().includes(q) ||
@@ -643,7 +655,7 @@ export default function AllRequests({ adminDisplayName }) {
                 <SortTh col="company"        label="Company"      sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                 <SortTh col="vehicle_id"     label="Vehicle"      sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                 <SortTh col="vin"            label="VIN"          sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-                <SortTh col="service_type"   label="Service Type" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+                <SortTh col="service_type"   label="Service"      sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                 <SortTh col="urgency"        label="Urgency"      sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                 <SortTh col="status"         label="Status"       sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
                 <SortTh col="invoice_status" label="Invoice"      sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
@@ -676,7 +688,17 @@ export default function AllRequests({ adminDisplayName }) {
                   </td>
                   <td className="mono">{r.vin || "—"}</td>
                   <td style={{ fontSize:13 }}>
-                    <span className="clickable-val" onClick={e => { e.stopPropagation(); setServiceFilter(r.service_type); }}>{r.service_type}</span>
+                    {(() => {
+                      const names = srNamesMap[r.id] || r.service_type || null;
+                      if (!names) return <span style={{ color:"var(--muted)" }}>—</span>;
+                      // Each name is independently clickable to set the filter
+                      return names.split(" / ").map((n, i, arr) => (
+                        <span key={n}>
+                          <span className="clickable-val" onClick={e => { e.stopPropagation(); setServiceFilter(n); }}>{n}</span>
+                          {i < arr.length - 1 && <span style={{ color:"var(--dim)", margin:"0 4px" }}>/</span>}
+                        </span>
+                      ));
+                    })()}
                   </td>
                   <td><span className={`urg ${r.urgency}`}>{r.urgency}</span></td>
                   <td><StatusBadge status={r.status} /></td>

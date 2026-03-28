@@ -239,31 +239,34 @@ export default function ServiceLinesEditor({ srId, initialLines, mechanic, srSta
     }]);
   };
 
-  // After saving a line, pre-populate the linked draft invoice with service name + parts.
-  // Only touches draft invoices — never overwrites submitted/approved/etc.
-  const syncInvoiceParts = async (lineId, serviceName, parts) => {
+  // After saving a line, sync invoice: pre-populate line_items (diagnostic always first),
+  // set service_type, and auto-advance draft → submitted when line is marked complete.
+  // Never touches invoices that are already past draft.
+  const syncInvoiceParts = async (lineId, serviceName, parts, isCompleted) => {
     const { data: inv } = await supabase
       .from("invoices")
-      .select("id")
+      .select("id, status")
       .eq("service_line_id", lineId)
-      .eq("status", "draft")
       .maybeSingle();
-    if (!inv) return;
+    if (!inv || inv.status !== "draft") return;
 
     const lineItems = {
       services: [{
         name:        serviceName || "",
         labor_hours: "",
         labor_rate:  "220",
-        parts: (parts || []).map(p => ({ description: p, quantity: "1", rate: "" })),
+        parts: [
+          { description: "Diagnostic Fee", quantity: "1", rate: "" },
+          ...(parts || []).map(p => ({ description: p, quantity: "1", rate: "" })),
+        ],
       }],
       settings: { taxType: "none", taxValue: "0", discountType: "none", discountValue: "0" },
     };
 
-    await supabase.from("invoices").update({
-      line_items:   lineItems,
-      service_type: serviceName || null,
-    }).eq("id", inv.id);
+    const updates = { line_items: lineItems, service_type: serviceName || null };
+    if (isCompleted) updates.status = "submitted";
+
+    await supabase.from("invoices").update(updates).eq("id", inv.id);
   };
 
   const persistLines = async () => {
@@ -283,7 +286,7 @@ export default function ServiceLinesEditor({ srId, initialLines, mechanic, srSta
         }).select("id").single();
         if (err) { setError("Save failed: " + err.message); return false; }
         savedIds[line.line_letter] = data.id;
-        await syncInvoiceParts(data.id, line.service_name, line.parts);
+        await syncInvoiceParts(data.id, line.service_name, line.parts, !!line.is_completed);
       } else {
         const { error: err } = await supabase.from("service_lines").update({
           service_name: line.service_name || null,
@@ -292,7 +295,7 @@ export default function ServiceLinesEditor({ srId, initialLines, mechanic, srSta
           is_completed: !!line.is_completed,
         }).eq("id", line.id);
         if (err) { setError("Save failed: " + err.message); return false; }
-        await syncInvoiceParts(line.id, line.service_name, line.parts);
+        await syncInvoiceParts(line.id, line.service_name, line.parts, !!line.is_completed);
       }
     }
 
