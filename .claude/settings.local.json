@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cd:*)",
+      "Bash(winget install:*)",
+      "mcp__supabase__apply_migration",
+      "Bash(./supabase.exe functions:*)",
+      "Bash(npm install:*)",
+      "Bash(vercel:*)",
+      "Bash(which vercel:*)",
+      "Bash(npx vercel:*)",
+      "mcp__supabase__execute_sql",
+      "Bash(npm run:*)",
+      "Skill(update-config)",
+      "Bash(claude mcp:*)",
+      "WebFetch(domain:github.com)",
+      "Bash(npx get-shit-done-cc:*)",
+      "Bash(supabase.exe functions:*)",
+      "mcp__supabase__deploy_edge_function",
+      "Bash(git init:*)",
+      "Bash(git branch:*)",
+      "Bash(git add:*)",
+      "Bash(git rm:*)",
+      "Bash(git commit:*)",
+      "Bash(git config:*)",
+      "Bash(gh auth:*)",
+      "Bash(git remote:*)",
+      "Bash(git push:*)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(wc -c /c/Users/logan_4932o/fleet-portal/.claude/rules/*.md)",
+      "Bash(xargs wc:*)",
+      "Bash(grep -rn \"Company\\\\|Companies\\\\|company\\\\|companies\" /c/Users/logan_4932o/fleet-portal/src/tabs/*.jsx)",
+      "Bash(grep:*)"
+    ]
+  }
+}

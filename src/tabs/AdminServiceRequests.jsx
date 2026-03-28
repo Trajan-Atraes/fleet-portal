@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { SUPABASE_URL } from "../lib/supabase";
-import { STATUS_OPTIONS, STATUS_LABELS, SERVICE_TYPES } from "../lib/constants";
-import { InvoiceBillingBadge } from "../components/StatusBadge";
+import { STATUS_OPTIONS, STATUS_LABELS } from "../lib/constants";
+import { LineInvoiceBadges } from "../components/StatusBadge";
 import NotesLog from "../components/NotesLog";
+import { PartsSummary } from "../components/ServiceLinesEditor";
 
 // ─── ICONS (local copies needed in this file) ─────────────────
 const IcoRefresh  = () => <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>;
@@ -20,7 +21,7 @@ function StatusBadge({ status }) {
 }
 
 // ─── REQUEST MODAL ───────────────────────────────────────────
-function RequestModal({ request, onClose, onUpdate, onDelete, adminDisplayName, invoiceStatus, companiesMap }) {
+function RequestModal({ request, onClose, onUpdate, onDelete, adminDisplayName, linesInvoiceData, companiesMap }) {
   const [status, setStatus] = useState(request.status);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved]   = useState(false);
@@ -87,7 +88,7 @@ function RequestModal({ request, onClose, onUpdate, onDelete, adminDisplayName, 
             <span className="detail-label">DSP</span>
             <span className="detail-value">{companiesMap[request.company_id] || "—"}</span>
             <span className="detail-label">Invoice</span>
-            <span className="detail-value"><InvoiceBillingBadge status={invoiceStatus} /></span>
+            <span className="detail-value"><LineInvoiceBadges linesInvoiceData={linesInvoiceData} /></span>
             {request.updated_by_name && <>
               <span className="detail-label">Updated By</span>
               <span className="detail-value" style={{fontSize:12}}>
@@ -104,6 +105,11 @@ function RequestModal({ request, onClose, onUpdate, onDelete, adminDisplayName, 
             </div>
           )}
 
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontSize:10, fontWeight:600, letterSpacing:"0.18em", textTransform:"uppercase", color:"var(--muted)", marginBottom:6 }}>Parts Used</div>
+            <PartsSummary srId={request.id} />
+          </div>
+
           <hr className="divider" />
 
           <div className="field">
@@ -118,7 +124,7 @@ function RequestModal({ request, onClose, onUpdate, onDelete, adminDisplayName, 
 
           {confirmDelete && (
             <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:6, padding:"10px 14px", marginBottom:10, fontSize:13, color:"var(--body)" }}>
-              <strong style={{ color:"#ef4444" }}>Delete this service request?</strong> This will also permanently delete the linked invoice. This cannot be undone.
+              <strong style={{ color:"#ef4444" }}>Delete this service request?</strong> This will also permanently delete all linked invoices. This cannot be undone.
             </div>
           )}
 
@@ -151,7 +157,7 @@ function NewRequestModal({ onClose, onCreated }) {
   const [form, setForm] = useState({
     company_id:"", vehicle_id:"", vin:"",
     vehicle_make:"", vehicle_model:"", vehicle_year:"", mileage:"",
-    service_type:"", urgency:"medium", description:"",
+    urgency:"medium", description:"",
   });
   const [saving, setSaving]             = useState(false);
   const [error, setError]               = useState("");
@@ -171,7 +177,7 @@ function NewRequestModal({ onClose, onCreated }) {
 
   const f = (k, v) => {
     setForm(p => ({ ...p, [k]: v }));
-    if (["vin", "service_type", "mileage"].includes(k)) setDuplicateWarning(null);
+    if (["vin", "mileage"].includes(k)) setDuplicateWarning(null);
   };
 
   // Reset registry state whenever company or vehicle_id changes
@@ -247,21 +253,20 @@ function NewRequestModal({ onClose, onCreated }) {
   };
 
   const handleSave = async () => {
-    if (!form.company_id || !form.vehicle_id || !form.service_type || !form.urgency) {
-      setError("Company, Vehicle ID, Service Type, and Urgency are required."); return;
+    if (!form.company_id || !form.vehicle_id || !form.urgency) {
+      setError("Company, Vehicle ID, and Urgency are required."); return;
     }
     if (registryVehicle && registryVehicle.status === "Retired") {
       setError("This vehicle is retired and cannot be assigned to a new service request."); return;
     }
     setSaving(true); setError("");
 
-    // Duplicate check — only when VIN + service_type + mileage are all present
-    if (form.vin && form.service_type && form.mileage && duplicateWarning === null) {
+    // Duplicate check — only when VIN + mileage are both present
+    if (form.vin && form.mileage && duplicateWarning === null) {
       const { data: dupes } = await supabase
         .from("service_requests")
         .select("id, request_number, status")
         .eq("vin", form.vin.trim())
-        .eq("service_type", form.service_type)
         .eq("mileage", parseInt(form.mileage))
         .in("status", ["pending", "in_progress"]);
       if (dupes && dupes.length > 0) {
@@ -297,7 +302,6 @@ function NewRequestModal({ onClose, onCreated }) {
       vehicle_model:       form.vehicle_model,
       vehicle_year:        form.vehicle_year,
       mileage:             form.mileage ? parseInt(form.mileage) : null,
-      service_type:        form.service_type,
       urgency:             form.urgency,
       description:         form.description,
       status:              "pending",
@@ -327,7 +331,7 @@ function NewRequestModal({ onClose, onCreated }) {
             <div style={{ background:"var(--amber-dim)", border:"1px solid rgba(245,158,11,0.35)", borderRadius:6, padding:"12px 14px", marginBottom:14 }}>
               <div style={{ fontWeight:700, color:"var(--amber)", fontSize:13, marginBottom:6 }}>⚠ Possible Duplicate Request</div>
               <div style={{ fontSize:12, color:"var(--body)", marginBottom:6 }}>
-                An active service request with the same VIN, service type, and mileage already exists:
+                An active service request with the same VIN and mileage already exists:
               </div>
               {duplicateWarning.map(sr => (
                 <div key={sr.id} style={{ fontSize:12, color:"var(--soft)", marginBottom:2 }}>
@@ -335,7 +339,7 @@ function NewRequestModal({ onClose, onCreated }) {
                 </div>
               ))}
               <div style={{ fontSize:12, color:"var(--muted)", marginTop:8 }}>
-                Click <strong>Submit Anyway</strong> to create this request, or edit the VIN, service type, or mileage to dismiss.
+                Click <strong>Submit Anyway</strong> to create this request, or edit the VIN or mileage to dismiss.
               </div>
             </div>
           )}
@@ -448,22 +452,13 @@ function NewRequestModal({ onClose, onCreated }) {
               <input type="number" value={form.mileage} onChange={e => f("mileage", e.target.value)} placeholder="85000" />
             </div>
           </div>
-          <div className="form-grid">
-            <div className="field">
-              <label>Service Type *</label>
-              <select value={form.service_type} onChange={e => f("service_type", e.target.value)}>
-                <option value="">— Select —</option>
-                {SERVICE_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
-            </div>
-            <div className="field">
-              <label>Urgency *</label>
-              <select value={form.urgency} onChange={e => f("urgency", e.target.value)}>
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-              </select>
-            </div>
+          <div className="field">
+            <label>Urgency *</label>
+            <select value={form.urgency} onChange={e => f("urgency", e.target.value)}>
+              <option value="low">Low</option>
+              <option value="medium">Medium</option>
+              <option value="high">High</option>
+            </select>
           </div>
           <div className="field">
             <label>Description</label>
@@ -502,7 +497,13 @@ function SortTh({ col, label, sortCol, sortDir, onSort }) {
   );
 }
 
-function sortSRRows(rows, col, dir, companiesMap, invoiceStatusMap) {
+function worstInvoiceOrder(linesInvoiceMap, srId) {
+  const lines = linesInvoiceMap[srId] || [];
+  if (!lines.length) return 99;
+  return Math.min(...lines.map(l => SR_INVOICE_ORDER[l.status] ?? 99));
+}
+
+function sortSRRows(rows, col, dir, companiesMap, linesInvoiceMap) {
   const m = dir === "asc" ? 1 : -1;
   return [...rows].sort((a, b) => {
     let va, vb;
@@ -515,7 +516,7 @@ function sortSRRows(rows, col, dir, companiesMap, invoiceStatusMap) {
     if (col === "company")         { va = (companiesMap[a.company_id]||"").toLowerCase(); vb = (companiesMap[b.company_id]||"").toLowerCase(); return m * va.localeCompare(vb); }
     if (col === "urgency")         { va = SR_URGENCY_ORDER[a.urgency]??99; vb = SR_URGENCY_ORDER[b.urgency]??99; return m*(va-vb); }
     if (col === "status")          { va = SR_STATUS_ORDER[a.status]??99; vb = SR_STATUS_ORDER[b.status]??99; return m*(va-vb); }
-    if (col === "invoice_status")  { va = SR_INVOICE_ORDER[invoiceStatusMap[a.id]]??99; vb = SR_INVOICE_ORDER[invoiceStatusMap[b.id]]??99; return m*(va-vb); }
+    if (col === "invoice_status")  { va = worstInvoiceOrder(linesInvoiceMap, a.id); vb = worstInvoiceOrder(linesInvoiceMap, b.id); return m*(va-vb); }
     va = (a[col]||"").toLowerCase(); vb = (b[col]||"").toLowerCase();
     return m * va.localeCompare(vb);
   });
@@ -531,7 +532,7 @@ export default function AllRequests({ adminDisplayName }) {
   const [selected, setSelected]         = useState(null);
   const [search, setSearch]                   = useState("");
   const [showNewRequest, setShowNewRequest]   = useState(false);
-  const [invoiceStatusMap, setInvoiceStatusMap] = useState({}); // sr_id → invoice status
+  const [linesInvoiceMap, setLinesInvoiceMap] = useState({}); // sr_id → [{line_letter, status}]
   const [sortCol, setSortCol] = useState("created_at");
   const [sortDir, setSortDir] = useState("desc");
 
@@ -545,15 +546,19 @@ export default function AllRequests({ adminDisplayName }) {
     const [{ data }, { data: cos }, { data: invs }] = await Promise.all([
       supabase.from("service_requests").select("*").order("created_at", { ascending: false }),
       supabase.from("companies").select("id, name"),
-      supabase.from("invoices").select("service_request_id, status"),
+      supabase.from("invoices").select("service_request_id, status, service_line_id, service_lines(line_letter)"),
     ]);
     const map = {};
     (cos || []).forEach(c => { map[c.id] = c.name; });
     setCompaniesMap(map);
     setRequests(data || []);
     const imap = {};
-    (invs || []).forEach(i => { if (i.service_request_id) imap[i.service_request_id] = i.status; });
-    setInvoiceStatusMap(imap);
+    (invs || []).forEach(i => {
+      if (!i.service_request_id) return;
+      if (!imap[i.service_request_id]) imap[i.service_request_id] = [];
+      imap[i.service_request_id].push({ line_letter: i.service_lines?.line_letter || "?", status: i.status });
+    });
+    setLinesInvoiceMap(imap);
     setLoading(false);
   };
 
@@ -647,7 +652,7 @@ export default function AllRequests({ adminDisplayName }) {
               </tr>
             </thead>
             <tbody>
-              {sortSRRows(filtered, sortCol, sortDir, companiesMap, invoiceStatusMap).map(r => (
+              {sortSRRows(filtered, sortCol, sortDir, companiesMap, linesInvoiceMap).map(r => (
                 <tr key={r.id} onClick={() => setSelected(r)}>
                   <td style={{ color:"var(--soft)", whiteSpace:"nowrap", fontSize:11 }}>
                     {new Date(r.created_at).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" })}
@@ -675,7 +680,7 @@ export default function AllRequests({ adminDisplayName }) {
                   </td>
                   <td><span className={`urg ${r.urgency}`}>{r.urgency}</span></td>
                   <td><StatusBadge status={r.status} /></td>
-                  <td><InvoiceBillingBadge status={invoiceStatusMap[r.id]} /></td>
+                  <td><LineInvoiceBadges linesInvoiceData={linesInvoiceMap[r.id]} /></td>
                   <td>
                     {r.updated_by_name ? (
                       <div>
@@ -701,7 +706,7 @@ export default function AllRequests({ adminDisplayName }) {
           onUpdate={() => { load(); setSelected(null); }}
           onDelete={() => { load(); setSelected(null); }}
           adminDisplayName={adminDisplayName}
-          invoiceStatus={invoiceStatusMap[selected.id]} companiesMap={companiesMap} />
+          linesInvoiceData={linesInvoiceMap[selected.id]} companiesMap={companiesMap} />
       )}
 
       {showNewRequest && (

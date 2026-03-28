@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import { createClient } from "@supabase/supabase-js";
+import NotesLog from "./components/NotesLog";
+import { PartsSummary } from "./components/ServiceLinesEditor";
 
 const SUPABASE_URL = "https://kiayjlepwmdacojhpisq.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_b7zg8JgNWZuMjkG7_HnLeg_yylvj3MH";
@@ -11,6 +13,7 @@ const IcoDollar   = () => <svg width="14" height="14" fill="none" stroke="curren
 const IcoCar      = () => <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h1l2-4h10l2 4h1a2 2 0 012 2v6a2 2 0 01-2 2h-2"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="17.5" r="2.5"/></svg>;
 const IcoChevron  = () => <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>;
 const IcoMenu     = () => <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>;
+const IcoWrench   = () => <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>;
 const IcoPlus     = () => <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
 const IcoRefresh  = () => <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>;
 const IcoSparkle  = () => <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>;
@@ -33,10 +36,10 @@ const css = `
     --text:    #bfd0e2;
     --snow:    #dae7f2;
     --white:   #edf4fd;
-    --accent:     #8b5cf6;
-    --accent-hot: #a78bfa;
-    --accent-dim: rgba(139,92,246,0.10);
-    --accent-rim: rgba(139,92,246,0.22);
+    --accent:     #f59e0b;
+    --accent-hot: #fbbf24;
+    --accent-dim: rgba(245,158,11,0.10);
+    --accent-rim: rgba(245,158,11,0.22);
     --green:  #10b981; --green-dim:  rgba(16,185,129,0.12);
     --red:    #ef4444; --red-dim:    rgba(239,68,68,0.12);
     --blue:   #3b82f6; --blue-dim:   rgba(59,130,246,0.12);
@@ -70,7 +73,7 @@ const css = `
   .auth-logo em { color:var(--accent); font-style:normal; }
   .auth-logo .portal-tag {
     font-size:9px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase;
-    background:var(--accent-dim); color:var(--accent); border:1px solid var(--accent-rim);
+    background:rgba(139,92,246,0.15); color:#a78bfa; border:1px solid rgba(139,92,246,0.35);
     border-radius:3px; padding:2px 6px;
   }
   .auth-card h2 {
@@ -95,7 +98,7 @@ const css = `
 
   /* ── BUTTONS ── */
   .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:8px 16px; border-radius:5px; font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; border:none; transition:all 0.15s; white-space:nowrap; }
-  .btn-primary { background:var(--accent); color:#fff; }
+  .btn-primary { background:var(--accent); color:#000; }
   .btn-primary:hover:not(:disabled) { background:var(--accent-hot); }
   .btn-primary:active:not(:disabled) { transform:scale(0.97); }
   .btn-primary:disabled { opacity:0.4; cursor:not-allowed; }
@@ -123,7 +126,7 @@ const css = `
   .sidebar-logo em { color:var(--accent); font-style:normal; }
   .sidebar-portal-tag {
     margin-left:8px; font-size:9px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase;
-    background:var(--accent-dim); color:var(--accent); border:1px solid var(--accent-rim);
+    background:rgba(139,92,246,0.15); color:#a78bfa; border:1px solid rgba(139,92,246,0.35);
     border-radius:3px; padding:2px 6px;
   }
   .sidebar-nav { flex:1; padding:8px; display:flex; flex-direction:column; gap:2px; overflow-y:auto; }
@@ -181,7 +184,7 @@ const css = `
   .filters { display:flex; gap:5px; flex-wrap:wrap; align-items:center; }
   .filter-btn { font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; padding:0 11px; height:24px; border-radius:3px; cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--muted); transition:all 0.15s; display:flex; align-items:center; }
   .filter-btn:hover { border-color:var(--rim); color:var(--body); }
-  .filter-btn.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+  .filter-btn.active { background:var(--accent); border-color:var(--accent); color:#000; }
   .filter-chip { display:inline-flex; align-items:center; gap:5px; padding:0 8px; height:24px; border-radius:3px; background:var(--blue-dim); border:1px solid rgba(59,130,246,0.3); color:#60a5fa; font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; }
   .filter-chip-x { cursor:pointer; opacity:0.7; font-size:15px; line-height:1; margin-left:2px; }
   .filter-chip-x:hover { opacity:1; }
@@ -206,6 +209,7 @@ const css = `
   .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.78); display:flex; align-items:center; justify-content:center; z-index:500; padding:20px; animation:fadeIn 0.18s ease; }
   @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
   .modal { background:var(--raised); border:1px solid var(--border); border-radius:7px; width:100%; max-width:520px; max-height:90vh; overflow-y:auto; }
+  @media (min-width:900px) { .modal { max-width:min(83vw,1100px); max-height:88vh; } }
   .modal-head { padding:18px 22px 0; display:flex; align-items:flex-start; justify-content:space-between; position:sticky; top:0; background:var(--raised); z-index:1; padding-bottom:14px; border-bottom:1px solid var(--border); }
   .modal-head h3 { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:900; text-transform:uppercase; letter-spacing:0.06em; color:var(--snow); }
   .modal-head-sub { font-size:11px; color:var(--muted); margin-top:2px; }
@@ -309,18 +313,27 @@ const SERVICE_TYPES = [
   "Suspension / Steering", "Alignment", "Exhaust", "Fluid Service",
   "Preventive Maintenance", "DOT Inspection", "Other",
 ];
+const STATUS_OPTIONS = ["pending", "in_progress", "completed", "cancelled"];
+const STATUS_LABELS  = { pending:"Pending", in_progress:"In Progress", completed:"Completed", cancelled:"Cancelled" };
 
 // ─── INVOICE STATUS BADGE ─────────────────────────────────────
-function InvoiceStatusBadge({ status }) {
+function InvoiceStatusBadge({ status, label }) {
   const map = {
     draft:         { bg:"rgba(55,79,104,0.3)",    color:"#526a84", label:"Draft"         },
-    submitted:     { bg:"rgba(59,130,246,0.12)",  color:"#60a5fa", label:"Submitted"     },
+    submitted:     { bg:"rgba(245,158,11,0.12)",  color:"#fbbf24", label:"Submitted"     },
     approved:      { bg:"rgba(16,185,129,0.12)",  color:"#34d399", label:"Approved"      },
     rejected:      { bg:"rgba(239,68,68,0.12)",   color:"#f87171", label:"Rejected"      },
-    client_billed: { bg:"rgba(139,92,246,0.12)",  color:"#a78bfa", label:"Client Billed" },
+    client_billed: { bg:"rgba(59,130,246,0.12)",  color:"#60a5fa", label:"Client Billed" },
     paid:          { bg:"rgba(16,185,129,0.22)",  color:"#6ee7b7", label:"Paid"          },
   };
-  const s = map[status] || map.draft;
+  const s = map[status];
+  if (!s) return (
+    <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:10, fontWeight:700,
+      letterSpacing:"0.1em", textTransform:"uppercase", color:"var(--muted)" }}>
+      Not Invoiced
+    </span>
+  );
+  const displayLabel = label ? `${label} · ${s.label}` : s.label;
   return (
     <span style={{
       display:"inline-flex", alignItems:"center", gap:5, padding:"0 7px",
@@ -329,8 +342,26 @@ function InvoiceStatusBadge({ status }) {
       background:s.bg, color:s.color, border:`1px solid ${s.color}44`,
     }}>
       <span style={{ width:5, height:5, borderRadius:"50%", background:s.color, flexShrink:0 }} />
-      {s.label}
+      {displayLabel}
     </span>
+  );
+}
+
+function LineInvoiceBadges({ linesInvoiceData }) {
+  if (!linesInvoiceData || linesInvoiceData.length === 0) {
+    return (
+      <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontSize:10, fontWeight:700,
+        letterSpacing:"0.1em", textTransform:"uppercase", color:"var(--muted)" }}>
+        Not Invoiced
+      </span>
+    );
+  }
+  return (
+    <div style={{ display:"flex", flexWrap:"wrap", gap:4 }}>
+      {linesInvoiceData.map(({ line_letter, status }) => (
+        <InvoiceStatusBadge key={line_letter} status={status} label={`Line ${line_letter}`} />
+      ))}
+    </div>
   );
 }
 
@@ -340,7 +371,7 @@ function SRStatusBadge({ status }) {
     pending:     { color:"#fbbf24", bg:"rgba(245,158,11,0.12)"  },
     in_progress: { color:"#60a5fa", bg:"rgba(59,130,246,0.12)"  },
     completed:   { color:"#34d399", bg:"rgba(16,185,129,0.12)"  },
-    cancelled:   { color:"#526a84", bg:"rgba(55,79,104,0.3)"    },
+    cancelled:   { color:"#6b7280", bg:"rgba(75,85,99,0.12)"    },
   };
   const STATUS_LABELS = { pending:"Pending", in_progress:"In Progress", completed:"Completed", cancelled:"Cancelled" };
   const s = map[status] || { color:"var(--muted)", bg:"rgba(255,255,255,0.05)" };
@@ -437,15 +468,15 @@ function InvoiceBuilder({ onSaved, onCancel }) {
   const [linkedReqId, setLinkedReqId] = useState("");
   const [form, setForm] = useState({
     company_id:"", vehicle_id:"", vin:"", vehicle_make:"", vehicle_model:"", vehicle_year:"",
-    service_type:"", submission_target:"",
+    service_type:"", bill_to_id:"",
     taxType:"flat", taxValue:"0",
     discountType:"none", discountValue:"0",
-    notes:"",
   });
   const [services, setServices] = useState([{
     name:"", labor_hours:"", labor_rate:String(DEFAULT_RATE),
     parts:[{ description:"", quantity:"1", rate:"" }],
   }]);
+  const [billToContacts, setBillToContacts] = useState([]);
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -454,6 +485,7 @@ function InvoiceBuilder({ onSaved, onCancel }) {
   useEffect(() => {
     supabase.from("service_requests").select("id,request_number,vehicle_id,vin,vehicle_make,vehicle_model,vehicle_year,service_type,company_id").order("request_number",{ascending:false}).then(({data}) => setRequests(data||[]));
     supabase.from("companies").select("id,name").order("name").then(({data}) => setCompanies(data||[]));
+    supabase.from("bill_to_contacts").select("*").order("name").then(({data}) => setBillToContacts(data||[]));
   }, []);
 
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
@@ -526,9 +558,10 @@ function InvoiceBuilder({ onSaved, onCancel }) {
   };
 
   const handleSave = async (submitNow) => {
-    if (!form.service_type || !form.submission_target) { setError("Service type and submission target are required."); return; }
+    if (!form.service_type) { setError("Service type is required."); return; }
     setSaving(true); setError("");
     const { data: { session } } = await supabase.auth.getSession();
+    const selectedBillTo = billToContacts.find(c => c.id === form.bill_to_id) || null;
     const { error: err } = await supabase.from("invoices").insert({
       service_request_id: linkedReqId || null,
       company_id:         form.company_id || null,
@@ -538,7 +571,8 @@ function InvoiceBuilder({ onSaved, onCancel }) {
       vehicle_model:      form.vehicle_model,
       vehicle_year:       form.vehicle_year,
       service_type:       form.service_type,
-      submission_target:  form.submission_target,
+      bill_to_id:         form.bill_to_id || null,
+      submission_target:  selectedBillTo ? selectedBillTo.name : null,
       labor_hours:        0,
       labor_rate:         DEFAULT_RATE,
       parts_cost:         afterDiscount,
@@ -546,7 +580,6 @@ function InvoiceBuilder({ onSaved, onCancel }) {
       tax:                taxAmt,
       line_items:         { services, settings: { taxType: form.taxType, taxValue: form.taxValue, discountType: form.discountType, discountValue: form.discountValue } },
       status:             submitNow ? "submitted" : "draft",
-      notes:              form.notes,
       created_by:         session?.user?.id,
     });
     setSaving(false);
@@ -587,7 +620,7 @@ function InvoiceBuilder({ onSaved, onCancel }) {
         <div className="card-title">Vehicle & Service</div>
         <div className="form-grid" style={{ marginBottom:10 }}>
           <div className="field">
-            <label>Company</label>
+            <label>DSP</label>
             <select value={form.company_id} onChange={e => f("company_id",e.target.value)}>
               <option value="">— Select —</option>
               {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -621,19 +654,32 @@ function InvoiceBuilder({ onSaved, onCancel }) {
             </select>
           </div>
         </div>
-        <div className="field" style={{ marginBottom:0 }}>
-          <label>Submission Target</label>
-          <select value={form.submission_target} onChange={e => f("submission_target",e.target.value)}>
-            <option value="">— Select Target —</option>
-            {SUBMISSION_TARGETS.map(t => <option key={t} value={t}>{TARGET_LABELS[t]}</option>)}
-          </select>
-        </div>
+        {(() => {
+          const sel = billToContacts.find(c => c.id === form.bill_to_id) || null;
+          return (
+            <>
+              <div className="field" style={{ marginBottom: sel ? 6 : 0 }}>
+                <label>Bill To</label>
+                <select value={form.bill_to_id} onChange={e => f("bill_to_id", e.target.value)}>
+                  <option value="">— Select Bill To Contact —</option>
+                  {billToContacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+              </div>
+              {sel && (
+                <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:5, padding:"8px 12px", marginBottom:0, fontSize:12 }}>
+                  <div style={{ color:"var(--soft)", marginBottom:2 }}>{sel.address}</div>
+                  <div style={{ color:"var(--dim)" }}>{[sel.email, sel.phone].filter(Boolean).join(" · ")}</div>
+                </div>
+              )}
+            </>
+          );
+        })()}
       </div>
 
       <PriceIntelPanel
         serviceType={form.service_type}
         vehicleType={vehicleType}
-        target={form.submission_target}
+        target={(billToContacts.find(c => c.id === form.bill_to_id) || null)?.name || ""}
         onSuggestTotal={(suggestedTotal) => {
           const remaining = suggestedTotal - taxAmt;
           if (remaining > 0) {
@@ -729,7 +775,7 @@ function InvoiceBuilder({ onSaved, onCancel }) {
               <label style={{ display:"block", fontSize:10, fontWeight:600, letterSpacing:"0.18em", textTransform:"uppercase", color:"var(--muted)", marginBottom:5 }}>Discount</label>
               <div style={{ display:"flex", gap:0, marginBottom:6 }}>
                 {[["none","None"],["flat","$ Flat"],["pct","% Pct"]].map(([val,label]) => (
-                  <button key={val} onClick={() => f("discountType",val)} style={{ padding:"0 10px", height:28, border:"1px solid var(--border)", cursor:"pointer", fontSize:11, fontWeight:700, fontFamily:"'Barlow Condensed',sans-serif", letterSpacing:"0.08em", background: form.discountType===val ? "var(--accent)" : "var(--raised)", color: form.discountType===val ? "#fff" : "var(--muted)", marginRight:-1 }}>{label}</button>
+                  <button key={val} onClick={() => f("discountType",val)} style={{ padding:"0 10px", height:28, border:"1px solid var(--border)", cursor:"pointer", fontSize:11, fontWeight:700, fontFamily:"'Barlow Condensed',sans-serif", letterSpacing:"0.08em", background: form.discountType===val ? "var(--accent)" : "var(--raised)", color: form.discountType===val ? "#000" : "var(--muted)", marginRight:-1 }}>{label}</button>
                 ))}
               </div>
               {form.discountType !== "none" && (
@@ -740,7 +786,7 @@ function InvoiceBuilder({ onSaved, onCancel }) {
               <label style={{ display:"block", fontSize:10, fontWeight:600, letterSpacing:"0.18em", textTransform:"uppercase", color:"var(--muted)", marginBottom:5 }}>Tax</label>
               <div style={{ display:"flex", gap:0, marginBottom:6 }}>
                 {[["flat","$ Flat"],["pct","% Pct"]].map(([val,label]) => (
-                  <button key={val} onClick={() => f("taxType",val)} style={{ padding:"0 10px", height:28, border:"1px solid var(--border)", cursor:"pointer", fontSize:11, fontWeight:700, fontFamily:"'Barlow Condensed',sans-serif", letterSpacing:"0.08em", background: form.taxType===val ? "var(--accent)" : "var(--raised)", color: form.taxType===val ? "#fff" : "var(--muted)", marginRight:-1 }}>{label}</button>
+                  <button key={val} onClick={() => f("taxType",val)} style={{ padding:"0 10px", height:28, border:"1px solid var(--border)", cursor:"pointer", fontSize:11, fontWeight:700, fontFamily:"'Barlow Condensed',sans-serif", letterSpacing:"0.08em", background: form.taxType===val ? "var(--accent)" : "var(--raised)", color: form.taxType===val ? "#000" : "var(--muted)", marginRight:-1 }}>{label}</button>
                 ))}
               </div>
               <input type="number" min="0" step={form.taxType==="pct"?"0.1":"0.01"} value={form.taxValue} onChange={e => f("taxValue",e.target.value)} placeholder={form.taxType==="pct"?"0.0":"0.00"} style={{ background:"var(--plate)", border:"1px solid var(--border)", borderRadius:4, padding:"0 10px", height:28, fontSize:12, color:"var(--text)", outline:"none", width:"100%", fontFamily:"'Barlow',sans-serif" }} />
@@ -773,15 +819,10 @@ function InvoiceBuilder({ onSaved, onCancel }) {
         </div>
       </div>
 
-      <div className="card" style={{ marginBottom:16 }}>
-        <div className="card-title">Notes</div>
-        <textarea value={form.notes} onChange={e => f("notes",e.target.value)} placeholder="Internal notes, special instructions…" style={{ marginBottom:0 }} />
-      </div>
-
       <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
         <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
         <button className="btn btn-ghost" onClick={() => handleSave(false)} disabled={saving}>{saving?"Saving…":"Save Draft"}</button>
-        <button className="btn btn-primary" onClick={() => handleSave(true)} disabled={saving||!form.service_type||!form.submission_target}>
+        <button className="btn btn-primary" onClick={() => handleSave(true)} disabled={saving||!form.service_type}>
           {saving?"Submitting…":"Submit Invoice"}
         </button>
       </div>
@@ -790,22 +831,21 @@ function InvoiceBuilder({ onSaved, onCancel }) {
 }
 
 // ─── INVOICE MODAL ────────────────────────────────────────────
-function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, onClose, onUpdate }) {
+function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, billToContacts, amDisplayName, amEmail, onClose, onUpdate }) {
   const savedSettings = (!Array.isArray(invoice.line_items) && invoice.line_items?.settings) ? invoice.line_items.settings : null;
   const [form, setForm] = useState({
-    company_id:        invoice.company_id        || "",
-    vehicle_id:        invoice.vehicle_id        || "",
-    vin:               invoice.vin               || "",
-    vehicle_make:      invoice.vehicle_make      || "",
-    vehicle_model:     invoice.vehicle_model     || "",
-    vehicle_year:      invoice.vehicle_year      || "",
-    service_type:      invoice.service_type      || "",
-    submission_target: invoice.submission_target || "",
-    taxType:           savedSettings?.taxType      || "flat",
-    taxValue:          savedSettings?.taxValue     || String(invoice.tax || "0"),
-    discountType:      savedSettings?.discountType || "none",
-    discountValue:     savedSettings?.discountValue || "0",
-    notes:             invoice.notes             || "",
+    company_id:   invoice.company_id   || "",
+    vehicle_id:   invoice.vehicle_id   || "",
+    vin:          invoice.vin          || "",
+    vehicle_make: invoice.vehicle_make || "",
+    vehicle_model:invoice.vehicle_model|| "",
+    vehicle_year: invoice.vehicle_year || "",
+    service_type: invoice.service_type || "",
+    bill_to_id:   invoice.bill_to_id   || "",
+    taxType:      savedSettings?.taxType      || "flat",
+    taxValue:     savedSettings?.taxValue     || String(invoice.tax || "0"),
+    discountType: savedSettings?.discountType || "none",
+    discountValue:savedSettings?.discountValue || "0",
   });
   const [services, setServices] = useState(() => {
     const li = invoice.line_items;
@@ -879,6 +919,7 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, onCl
 
   const handleSave = async () => {
     setSaving(true); setError("");
+    const selectedBillTo = (billToContacts||[]).find(c => c.id === form.bill_to_id) || null;
     const updates = {
       company_id:        form.company_id || null,
       vehicle_id:        form.vehicle_id,
@@ -887,7 +928,8 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, onCl
       vehicle_model:     form.vehicle_model,
       vehicle_year:      form.vehicle_year,
       service_type:      form.service_type,
-      submission_target: form.submission_target,
+      bill_to_id:        form.bill_to_id || null,
+      submission_target: selectedBillTo ? selectedBillTo.name : (invoice.submission_target || null),
       labor_hours:       0,
       labor_rate:        DEFAULT_RATE,
       parts_cost:        afterDiscount,
@@ -895,8 +937,6 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, onCl
       tax:               taxAmt,
       line_items:        { services, settings: { taxType: form.taxType, taxValue: form.taxValue, discountType: form.discountType, discountValue: form.discountValue } },
       status,
-      notes:             form.notes,
-      updated_at:        new Date().toISOString(),
     };
     if (status === "rejected") updates.rejection_reason = rejReason;
     const { error: err } = await supabase.from("invoices").update(updates).eq("id", invoice.id);
@@ -907,7 +947,7 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, onCl
       const vehicleType = [form.vehicle_make, form.vehicle_model].filter(Boolean).join(" ") || form.vehicle_id || "Unknown";
       await supabase.from("pricing_history").insert({
         invoice_id: invoice.id, service_type: form.service_type,
-        vehicle_type: vehicleType, submission_target: form.submission_target,
+        vehicle_type: vehicleType, submission_target: updates.submission_target || "Unknown",
         submitted_amount: total, outcome: status,
       });
     }
@@ -917,7 +957,7 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, onCl
 
   return (
     <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
-      <div className="modal" style={{ maxWidth:700 }}>
+      <div className="modal">
         <div className="modal-head">
           <div>
             <h3>Edit Invoice</h3>
@@ -925,7 +965,7 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, onCl
               <span>{companies.find(c => c.id === form.company_id)?.name || "—"} · Created {new Date(invoice.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>
               {invoice.service_request_id && requestsMap?.[invoice.service_request_id] && (
                 <span style={{ display:"inline-flex", alignItems:"center", gap:6 }}>
-                  <span style={{ color:"var(--muted)", fontSize:10 }}>SR-{requestsMap[invoice.service_request_id]}</span>
+                  <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13, color:"var(--accent)", letterSpacing:"0.05em" }}>Invoice #SR-{requestsMap[invoice.service_request_id]}</span>
                   <SRStatusBadge status={requestsStatusMap?.[invoice.service_request_id]} />
                 </span>
               )}
@@ -939,7 +979,7 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, onCl
           <div style={{ fontSize:10, fontWeight:600, letterSpacing:"0.18em", textTransform:"uppercase", color:"var(--muted)", marginBottom:8 }}>Vehicle & Service</div>
           <div className="form-grid" style={{ marginBottom:8 }}>
             <div className="field" style={{ marginBottom:0 }}>
-              <label>Company</label>
+              <label>DSP</label>
               <select value={form.company_id} onChange={e => f("company_id",e.target.value)}>
                 <option value="">— Select —</option>
                 {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -973,13 +1013,26 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, onCl
               </select>
             </div>
           </div>
-          <div className="field" style={{ marginBottom:14 }}>
-            <label>Submission Target</label>
-            <select value={form.submission_target} onChange={e => f("submission_target",e.target.value)}>
-              <option value="">— Select —</option>
-              {SUBMISSION_TARGETS.map(t => <option key={t} value={t}>{TARGET_LABELS[t]}</option>)}
-            </select>
-          </div>
+          {(() => {
+            const sel = (billToContacts||[]).find(c => c.id === form.bill_to_id) || null;
+            return (
+              <div style={{ marginBottom:14 }}>
+                <div className="field" style={{ marginBottom: sel ? 6 : 0 }}>
+                  <label>Bill To</label>
+                  <select value={form.bill_to_id} onChange={e => f("bill_to_id", e.target.value)}>
+                    <option value="">— Select Bill To Contact —</option>
+                    {(billToContacts||[]).map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                {sel && (
+                  <div style={{ background:"var(--surface)", border:"1px solid var(--border)", borderRadius:5, padding:"8px 12px", fontSize:12 }}>
+                    <div style={{ color:"var(--soft)", marginBottom:2 }}>{sel.address}</div>
+                    <div style={{ color:"var(--dim)" }}>{[sel.email, sel.phone].filter(Boolean).join(" · ")}</div>
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           <hr className="divider" />
 
@@ -1057,7 +1110,7 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, onCl
                 <label style={{ display:"block", fontSize:10, fontWeight:600, letterSpacing:"0.18em", textTransform:"uppercase", color:"var(--muted)", marginBottom:5 }}>Discount</label>
                 <div style={{ display:"flex", gap:0, marginBottom:6 }}>
                   {[["none","None"],["flat","$ Flat"],["pct","% Pct"]].map(([val,label]) => (
-                    <button key={val} onClick={() => f("discountType",val)} style={{ padding:"0 10px", height:28, border:"1px solid var(--border)", cursor:"pointer", fontSize:11, fontWeight:700, fontFamily:"'Barlow Condensed',sans-serif", letterSpacing:"0.08em", background: form.discountType===val ? "var(--accent)" : "var(--raised)", color: form.discountType===val ? "#fff" : "var(--muted)", marginRight:-1 }}>{label}</button>
+                    <button key={val} onClick={() => f("discountType",val)} style={{ padding:"0 10px", height:28, border:"1px solid var(--border)", cursor:"pointer", fontSize:11, fontWeight:700, fontFamily:"'Barlow Condensed',sans-serif", letterSpacing:"0.08em", background: form.discountType===val ? "var(--accent)" : "var(--raised)", color: form.discountType===val ? "#000" : "var(--muted)", marginRight:-1 }}>{label}</button>
                   ))}
                 </div>
                 {form.discountType !== "none" && (
@@ -1068,7 +1121,7 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, onCl
                 <label style={{ display:"block", fontSize:10, fontWeight:600, letterSpacing:"0.18em", textTransform:"uppercase", color:"var(--muted)", marginBottom:5 }}>Tax</label>
                 <div style={{ display:"flex", gap:0, marginBottom:6 }}>
                   {[["flat","$ Flat"],["pct","% Pct"]].map(([val,label]) => (
-                    <button key={val} onClick={() => f("taxType",val)} style={{ padding:"0 10px", height:28, border:"1px solid var(--border)", cursor:"pointer", fontSize:11, fontWeight:700, fontFamily:"'Barlow Condensed',sans-serif", letterSpacing:"0.08em", background: form.taxType===val ? "var(--accent)" : "var(--raised)", color: form.taxType===val ? "#fff" : "var(--muted)", marginRight:-1 }}>{label}</button>
+                    <button key={val} onClick={() => f("taxType",val)} style={{ padding:"0 10px", height:28, border:"1px solid var(--border)", cursor:"pointer", fontSize:11, fontWeight:700, fontFamily:"'Barlow Condensed',sans-serif", letterSpacing:"0.08em", background: form.taxType===val ? "var(--accent)" : "var(--raised)", color: form.taxType===val ? "#000" : "var(--muted)", marginRight:-1 }}>{label}</button>
                   ))}
                 </div>
                 <input type="number" min="0" step={form.taxType==="pct"?"0.1":"0.01"} value={form.taxValue} onChange={e => f("taxValue",e.target.value)} placeholder={form.taxType==="pct"?"0.0":"0.00"} style={{ background:"var(--plate)", border:"1px solid var(--border)", borderRadius:4, padding:"0 10px", height:28, fontSize:12, color:"var(--text)", outline:"none", width:"100%", fontFamily:"'Barlow',sans-serif" }} />
@@ -1114,10 +1167,7 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, onCl
               <input value={rejReason} onChange={e => setRejReason(e.target.value)} placeholder="Why was this invoice rejected?" />
             </div>
           )}
-          <div className="field">
-            <label>Notes</label>
-            <textarea value={form.notes} onChange={e => f("notes",e.target.value)} placeholder="Internal notes…" />
-          </div>
+          <NotesLog srId={invoice.service_request_id || null} currentUserName={amDisplayName || amEmail} isAdmin={false} />
 
           {saved && <div className="success-box">Saved.</div>}
 
@@ -1132,27 +1182,30 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, onCl
 }
 
 // ─── BILLING TAB ──────────────────────────────────────────────
-function Billing() {
-  const [invoices, setInvoices]   = useState([]);
-  const [companies, setCompanies] = useState([]);
-  const [requests, setRequests]   = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [view, setView]           = useState("list");
-  const [selected, setSelected]   = useState(null);
-  const [filter, setFilter]       = useState("all");
+function Billing({ amDisplayName, amEmail }) {
+  const [invoices, setInvoices]       = useState([]);
+  const [companies, setCompanies]     = useState([]);
+  const [requests, setRequests]       = useState([]);
+  const [billToContacts, setBillToContacts] = useState([]);
+  const [loading, setLoading]         = useState(true);
+  const [view, setView]               = useState("list");
+  const [selected, setSelected]       = useState(null);
+  const [filter, setFilter]           = useState("all");
   const [serviceFilter, setServiceFilter] = useState("");
   const [targetFilter, setTargetFilter]   = useState("");
 
   const load = async () => {
     setLoading(true);
-    const [{ data: invs }, { data: cos }, { data: reqs }] = await Promise.all([
+    const [{ data: invs }, { data: cos }, { data: reqs }, { data: btc }] = await Promise.all([
       supabase.from("invoices").select("*").order("created_at",{ascending:false}),
       supabase.from("companies").select("id,name").order("name"),
       supabase.from("service_requests").select("id,request_number,status"),
+      supabase.from("bill_to_contacts").select("*").order("name"),
     ]);
     setInvoices(invs || []);
     setCompanies(cos || []);
     setRequests(reqs || []);
+    setBillToContacts(btc || []);
     setLoading(false);
   };
 
@@ -1161,6 +1214,12 @@ function Billing() {
   const companiesMap      = Object.fromEntries((companies||[]).map(c => [c.id, c.name]));
   const requestsMap       = Object.fromEntries((requests||[]).map(r => [r.id, r.request_number]));
   const requestsStatusMap = Object.fromEntries((requests||[]).map(r => [r.id, r.status]));
+  const billToMap         = Object.fromEntries((billToContacts||[]).map(c => [c.id, c]));
+  const getBillToLabel    = (inv) => {
+    if (inv.bill_to_id && billToMap[inv.bill_to_id]) return billToMap[inv.bill_to_id].name;
+    if (inv.submission_target) return TARGET_LABELS[inv.submission_target] || inv.submission_target;
+    return null;
+  };
 
   const counts = {
     all:       invoices.length,
@@ -1178,7 +1237,11 @@ function Billing() {
   const filtered = invoices
     .filter(i => filter === "all" || (filter === "paid" ? (i.status === "paid" || i.status === "client_billed") : i.status === filter))
     .filter(i => !serviceFilter || i.service_type === serviceFilter)
-    .filter(i => !targetFilter || i.submission_target === targetFilter);
+    .filter(i => {
+      if (!targetFilter) return true;
+      if (i.bill_to_id) return i.bill_to_id === targetFilter;
+      return i.submission_target === targetFilter;
+    });
 
   if (view === "builder") {
     return <InvoiceBuilder onSaved={() => { load(); setView("list"); }} onCancel={() => setView("list")} />;
@@ -1223,7 +1286,7 @@ function Billing() {
           )}
           {targetFilter && (
             <span className="filter-chip">
-              {TARGET_LABELS[targetFilter] || targetFilter}
+              {billToMap[targetFilter]?.name || TARGET_LABELS[targetFilter] || targetFilter}
               <span className="filter-chip-x" onClick={() => setTargetFilter("")}>×</span>
             </span>
           )}
@@ -1243,14 +1306,14 @@ function Billing() {
               <tr>
                 <th>Date</th>
                 <th>Last Updated</th>
-                <th>SR #</th>
+                <th>Invoice #</th>
                 <th>Company</th>
                 <th>Vehicle</th>
                 <th>VIN</th>
                 <th>Service</th>
-                <th>Target</th>
+                <th>Bill To</th>
                 <th>Total</th>
-                <th>SR Status</th>
+                <th>Service Status</th>
                 <th>Status</th>
                 <th></th>
               </tr>
@@ -1285,9 +1348,13 @@ function Billing() {
                       : "—"}
                   </td>
                   <td style={{ fontSize:12 }}>
-                    {inv.submission_target
-                      ? <span className="clickable-val" onClick={e => { e.stopPropagation(); setTargetFilter(inv.submission_target); }}>{TARGET_LABELS[inv.submission_target] || inv.submission_target}</span>
-                      : "—"}
+                    {(() => {
+                      const label = getBillToLabel(inv);
+                      const filterVal = inv.bill_to_id || inv.submission_target;
+                      return label
+                        ? <span className="clickable-val" onClick={e => { e.stopPropagation(); setTargetFilter(filterVal); }}>{label}</span>
+                        : <span style={{ color:"var(--muted)" }}>—</span>;
+                    })()}
                   </td>
                   <td>
                     <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:14, color:"var(--accent)" }}>
@@ -1314,6 +1381,9 @@ function Billing() {
           companies={companies}
           requestsStatusMap={requestsStatusMap}
           requestsMap={requestsMap}
+          billToContacts={billToContacts}
+          amDisplayName={amDisplayName}
+          amEmail={amEmail}
           onClose={() => setSelected(null)}
           onUpdate={() => { load(); setSelected(null); }}
         />
@@ -1483,7 +1553,7 @@ function AMCompanies() {
                     <div style={{ marginBottom:14 }}>
                       <div className="form-grid" style={{ marginBottom:8 }}>
                         <div className="field" style={{ marginBottom:0 }}>
-                          <label>Company Name *</label>
+                          <label>DSP Name *</label>
                           <input value={detailForm.name} onChange={e => setDetailForm(f=>({...f,name:e.target.value}))} />
                         </div>
                         <div className="field" style={{ marginBottom:0 }}>
@@ -1769,7 +1839,7 @@ function AMVehicleRegistry({ amDisplayName }) {
         </div>
         <div style={{ display:"flex", gap:8 }}>
           <select value={companyFilter} onChange={e => setCompanyFilter(e.target.value)} style={{ padding:"5px 10px", fontSize:12, borderRadius:6, border:"1px solid var(--border)", background:"var(--raised)", color: companyFilter ? "var(--text)" : "var(--muted)", minWidth:160 }}>
-            <option value="">All Companies</option>
+            <option value="">All DSPs</option>
             {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
           </select>
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search vehicle ID, VIN, make…" style={{ padding:"5px 12px", fontSize:12, borderRadius:6, border:"1px solid var(--border)", background:"var(--raised)", color:"var(--text)", width:220, outline:"none" }} />
@@ -1899,7 +1969,7 @@ function AMVehicleRegistry({ amDisplayName }) {
             <div className="modal-body">
               {error && <div className="error-box" style={{ marginBottom:12 }}>{error}</div>}
               <div className="field">
-                <label>Company *</label>
+                <label>DSP *</label>
                 {editVehicle ? (
                   <div style={{ padding:"8px 10px", background:"var(--plate)", borderRadius:6, fontSize:13, color:"var(--soft)" }}>{companiesMap[editVehicle.company_id] || "—"}</div>
                 ) : (
@@ -1954,6 +2024,288 @@ function AMVehicleRegistry({ amDisplayName }) {
             </div>
           </div>
         </div>
+      )}
+    </div>
+  );
+}
+
+// ─── SERVICE REQUEST MODAL (AM) ───────────────────────────────
+function AMSRModal({ request, companiesMap, linesInvoiceData, amDisplayName, amEmail, onClose, onUpdate }) {
+  const [status, setStatus] = useState(request.status);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved]   = useState(false);
+  const [vehicleStatus, setVehicleStatus] = useState(null);
+
+  useEffect(() => {
+    if (!request.vehicle_registry_id) return;
+    supabase.from("vehicles").select("status").eq("id", request.vehicle_registry_id).maybeSingle()
+      .then(({ data }) => { if (data) setVehicleStatus(data.status); });
+  }, [request.vehicle_registry_id]);
+
+  const handleSave = async () => {
+    setSaving(true);
+    const { error } = await supabase.from("service_requests").update({
+      status,
+      updated_by_id:    null,
+      updated_by_name:  amDisplayName || amEmail,
+      updated_by_email: amEmail,
+    }).eq("id", request.id);
+    setSaving(false);
+    if (!error) { setSaved(true); setTimeout(() => { setSaved(false); onUpdate(); }, 1200); }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <div className="modal">
+        <div className="modal-head">
+          <div>
+            <h3>SR-{request.request_number} — Service Request</h3>
+            <div className="modal-head-sub">
+              {new Date(request.created_at).toLocaleDateString("en-US", { weekday:"short", month:"long", day:"numeric", year:"numeric" })}
+            </div>
+          </div>
+          <button className="modal-close" onClick={onClose}>×</button>
+        </div>
+        <div className="modal-body">
+          <div className="vehicle-block">
+            <div className="vehicle-block-eyebrow">Vehicle</div>
+            <div className="vehicle-block-id">{request.vehicle_id}</div>
+            {(request.vehicle_year || request.vehicle_make || request.vehicle_model) && (
+              <div className="vehicle-block-meta">
+                {[request.vehicle_year, request.vehicle_make, request.vehicle_model].filter(Boolean).join(" ")}
+                {request.mileage && ` — ${Number(request.mileage).toLocaleString()} mi`}
+              </div>
+            )}
+          </div>
+
+          {vehicleStatus === "Not Road Worthy" && (
+            <div style={{ background:"var(--amber-dim)", border:"1px solid rgba(245,158,11,0.35)", borderRadius:6, padding:"10px 14px", marginBottom:14, display:"flex", alignItems:"center", gap:8, fontSize:13 }}>
+              <span style={{ color:"var(--amber)", fontWeight:700, fontSize:14 }}>⚠</span>
+              <span style={{ color:"var(--amber)", fontWeight:700 }}>Not Road Worthy</span>
+              <span style={{ color:"var(--body)" }}>— this vehicle is currently marked Not Road Worthy in the registry</span>
+            </div>
+          )}
+
+          <div className="detail-grid">
+            <span className="detail-label">DSP</span>
+            <span className="detail-value">{companiesMap[request.company_id] || "—"}</span>
+            <span className="detail-label">Service</span>
+            <span className="detail-value">{request.service_type}</span>
+            <span className="detail-label">VIN</span>
+            <span className="detail-value mono">{request.vin || "—"}</span>
+            <span className="detail-label">Urgency</span>
+            <span className="detail-value"><span className={`urg ${request.urgency}`}>{request.urgency?.toUpperCase()}</span></span>
+            <span className="detail-label">Updated At</span>
+            <span className="detail-value" style={{ fontSize:12 }}>
+              {request.updated_at ? new Date(request.updated_at).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }) + " " + new Date(request.updated_at).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit" }) : "—"}
+            </span>
+            <span className="detail-label">Invoice</span>
+            <span className="detail-value"><LineInvoiceBadges linesInvoiceData={linesInvoiceData} /></span>
+          </div>
+
+          {request.description && (
+            <div style={{ marginBottom:14 }}>
+              <div style={{ fontSize:10, fontWeight:600, letterSpacing:"0.18em", textTransform:"uppercase", color:"var(--muted)", marginBottom:6 }}>Client Description</div>
+              <div style={{ background:"var(--plate)", borderRadius:5, padding:"10px 12px", fontSize:13, color:"var(--body)", lineHeight:1.6, border:"1px solid var(--border)" }}>{request.description}</div>
+            </div>
+          )}
+
+          <div style={{ marginBottom:14 }}>
+            <div style={{ fontSize:10, fontWeight:600, letterSpacing:"0.18em", textTransform:"uppercase", color:"var(--muted)", marginBottom:6 }}>Parts Used</div>
+            <PartsSummary srId={request.id} />
+          </div>
+
+          <hr className="divider" />
+
+          <div className="field">
+            <label>Update Status</label>
+            <select value={status} onChange={e => setStatus(e.target.value)}>
+              {STATUS_OPTIONS.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+            </select>
+          </div>
+          <NotesLog srId={request.id} currentUserName={amDisplayName || amEmail} isAdmin={false} />
+
+          {saved && <div className="success-box">Saved successfully</div>}
+
+          <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
+            <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
+              {saving ? "Saving…" : "Save Changes"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── SERVICE REQUESTS VIEW (AM) ───────────────────────────────
+function AMServiceRequests({ session, amDisplayName }) {
+  const [requests, setRequests]           = useState([]);
+  const [companiesMap, setCompaniesMap]   = useState({});
+  const [loading, setLoading]             = useState(true);
+  const [filter, setFilter]               = useState("all");
+  const [search, setSearch]               = useState("");
+  const [selected, setSelected]           = useState(null);
+  const [linesInvoiceMap, setLinesInvoiceMap] = useState({}); // sr_id → [{line_letter, status}]
+
+  const load = async () => {
+    setLoading(true);
+    const [{ data }, { data: cos }, { data: invs }] = await Promise.all([
+      supabase.from("service_requests").select("*").order("created_at", { ascending: false }),
+      supabase.from("companies").select("id, name"),
+      supabase.from("invoices").select("service_request_id, status, service_line_id, service_lines(line_letter)"),
+    ]);
+    const map = {};
+    (cos || []).forEach(c => { map[c.id] = c.name; });
+    setCompaniesMap(map);
+    setRequests(data || []);
+    const imap = {};
+    (invs || []).forEach(i => {
+      if (!i.service_request_id) return;
+      if (!imap[i.service_request_id]) imap[i.service_request_id] = [];
+      imap[i.service_request_id].push({ line_letter: i.service_lines?.line_letter || "?", status: i.status });
+    });
+    setLinesInvoiceMap(imap);
+    setLoading(false);
+  };
+
+  useEffect(() => { load(); }, []);
+
+  const counts = {
+    all:         requests.length,
+    pending:     requests.filter(r => r.status === "pending").length,
+    in_progress: requests.filter(r => r.status === "in_progress").length,
+    completed:   requests.filter(r => r.status === "completed").length,
+    cancelled:   requests.filter(r => r.status === "cancelled").length,
+  };
+
+  const filtered = requests.filter(r => {
+    const matchStatus = filter === "all" || r.status === filter;
+    const q = search.toLowerCase();
+    const matchSearch = !q ||
+      `sr-${r.request_number}`.includes(q) ||
+      String(r.request_number).includes(q) ||
+      r.vehicle_id?.toLowerCase().includes(q) ||
+      r.service_type?.toLowerCase().includes(q) ||
+      r.vehicle_make?.toLowerCase().includes(q) ||
+      r.vehicle_model?.toLowerCase().includes(q) ||
+      r.vin?.toLowerCase().includes(q) ||
+      r.description?.toLowerCase().includes(q) ||
+      companiesMap[r.company_id]?.toLowerCase().includes(q);
+    return matchStatus && matchSearch;
+  });
+
+  return (
+    <div>
+      <div className="page-header">
+        <div>
+          <div className="page-title">Service Requests</div>
+          <div className="page-sub">View and update service requests for your assigned companies</div>
+        </div>
+        <button className="btn btn-ghost btn-sm" onClick={load}><IcoRefresh /></button>
+      </div>
+
+      <div className="stats-row stats-5">
+        <div className="stat-card"><div className="stat-label">Total</div><div className="stat-value">{counts.all}</div></div>
+        <div className="stat-card"><div className="stat-label">Pending</div><div className="stat-value c-amber">{counts.pending}</div></div>
+        <div className="stat-card"><div className="stat-label">In Progress</div><div className="stat-value c-blue">{counts.in_progress}</div></div>
+        <div className="stat-card"><div className="stat-label">Completed</div><div className="stat-value c-green">{counts.completed}</div></div>
+        <div className="stat-card"><div className="stat-label">Cancelled</div><div className="stat-value c-red">{counts.cancelled}</div></div>
+      </div>
+
+      <div className="toolbar">
+        <div className="filters">
+          {["all","pending","in_progress","completed","cancelled"].map(s => (
+            <button key={s} className={`filter-btn ${filter === s ? "active" : ""}`} onClick={() => setFilter(s)}>
+              {s === "all" ? `All (${counts.all})` : `${STATUS_LABELS[s]} (${counts[s]})`}
+            </button>
+          ))}
+        </div>
+        <input className="search-input" placeholder="Search vehicles, services…" value={search} onChange={e => setSearch(e.target.value)} />
+      </div>
+
+      {loading ? <div className="loading-row">Loading requests…</div> : filtered.length === 0 ? (
+        <div className="empty-state">
+          <h3>No requests found</h3>
+          <p>Try adjusting your filter or search.</p>
+        </div>
+      ) : (
+        <div className="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th>
+                <th>Last Updated</th>
+                <th>SR #</th>
+                <th>Company</th>
+                <th>Vehicle</th>
+                <th>VIN</th>
+                <th>Service Type</th>
+                <th>Urgency</th>
+                <th>Status</th>
+                <th>Invoice</th>
+                <th>Updated By</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map(r => (
+                <tr key={r.id} onClick={() => setSelected(r)}>
+                  <td style={{ color:"var(--soft)", whiteSpace:"nowrap", fontSize:11 }}>
+                    {new Date(r.created_at).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" })}
+                  </td>
+                  <td style={{ color:"var(--soft)", whiteSpace:"nowrap", fontSize:11 }}>
+                    {r.updated_at ? new Date(r.updated_at).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }) + " " + new Date(r.updated_at).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit" }) : "—"}
+                  </td>
+                  <td>
+                    <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13, color:"var(--accent)", letterSpacing:"0.05em" }}>
+                      SR-{r.request_number}
+                    </span>
+                  </td>
+                  <td style={{ fontWeight:600, fontSize:13 }}>{companiesMap[r.company_id] || "—"}</td>
+                  <td>
+                    <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:14, textTransform:"uppercase" }}>{r.vehicle_id}</span>
+                    {(r.vehicle_make || r.vehicle_model) && (
+                      <span style={{ color:"var(--muted)", fontSize:11, marginLeft:8 }}>
+                        {[r.vehicle_year, r.vehicle_make, r.vehicle_model].filter(Boolean).join(" ")}
+                      </span>
+                    )}
+                  </td>
+                  <td className="mono">{r.vin || "—"}</td>
+                  <td style={{ fontSize:13 }}>{r.service_type}</td>
+                  <td><span className={`urg ${r.urgency}`}>{r.urgency}</span></td>
+                  <td><SRStatusBadge status={r.status} /></td>
+                  <td><LineInvoiceBadges linesInvoiceData={linesInvoiceMap[r.id]} /></td>
+                  <td>
+                    {r.updated_by_name ? (
+                      <div>
+                        <div style={{ fontSize:12, fontWeight:600 }}>{r.updated_by_name}</div>
+                        <div style={{ fontSize:10, color:"var(--muted)" }}>{r.updated_by_email}</div>
+                      </div>
+                    ) : <span style={{ color:"var(--dim)", fontSize:12 }}>—</span>}
+                  </td>
+                  <td>
+                    <button className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); setSelected(r); }}>
+                      View <IcoChevron />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {selected && (
+        <AMSRModal
+          request={selected}
+          companiesMap={companiesMap}
+          linesInvoiceData={linesInvoiceMap[selected.id]}
+          amDisplayName={amDisplayName}
+          amEmail={session.user?.email}
+          onClose={() => setSelected(null)}
+          onUpdate={() => { load(); setSelected(null); }} />
       )}
     </div>
   );
@@ -2023,15 +2375,16 @@ export default function AccountManagerApp() {
     setDisplayName(null);
   };
 
-  const handleNav = (id) => { setTab(id); setSidebarOpen(false); };
+  const handleNav = (id) => { setTab(id); if (window.innerWidth <= 768) setSidebarOpen(false); };
 
   const navItems = [
-    { id:"billing",   label:"Billing",          icon:<IcoDollar />   },
-    { id:"companies", label:"Companies",         icon:<IcoBuilding /> },
+    { id:"requests",  label:"Service Requests",  icon:<IcoWrench />   },
+    { id:"billing",   label:"Billing",           icon:<IcoDollar />   },
+    { id:"companies", label:"DSPs",               icon:<IcoBuilding /> },
     { id:"vehicles",  label:"Vehicle Registry",  icon:<IcoCar />      },
   ];
 
-  const pageTitle = { billing:"Billing", companies:"Companies", vehicles:"Vehicle Registry" };
+  const pageTitle = { requests:"Service Requests", billing:"Billing", companies:"DSPs", vehicles:"Vehicle Registry" };
 
   return (
     <>
@@ -2068,7 +2421,8 @@ export default function AccountManagerApp() {
               <div className="main-header-title">{pageTitle[tab]}</div>
             </div>
             <div className="main-content">
-              {tab === "billing"   && <Billing />}
+              {tab === "requests"  && <AMServiceRequests session={session} amDisplayName={displayName} />}
+              {tab === "billing"   && <Billing amDisplayName={displayName} amEmail={session.user?.email} />}
               {tab === "companies" && <AMCompanies />}
               {tab === "vehicles"  && <AMVehicleRegistry amDisplayName={displayName} />}
             </div>

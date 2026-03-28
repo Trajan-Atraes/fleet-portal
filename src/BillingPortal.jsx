@@ -28,10 +28,10 @@ const css = `
     --text:    #bfd0e2;
     --snow:    #dae7f2;
     --white:   #edf4fd;
-    --accent:     #8b5cf6;
-    --accent-hot: #a78bfa;
-    --accent-dim: rgba(139,92,246,0.10);
-    --accent-rim: rgba(139,92,246,0.22);
+    --accent:     #f59e0b;
+    --accent-hot: #fbbf24;
+    --accent-dim: rgba(245,158,11,0.10);
+    --accent-rim: rgba(245,158,11,0.22);
     --green:  #10b981; --green-dim:  rgba(16,185,129,0.12);
     --red:    #ef4444; --red-dim:    rgba(239,68,68,0.12);
     --blue:   #3b82f6; --blue-dim:   rgba(59,130,246,0.12);
@@ -54,7 +54,7 @@ const css = `
   @keyframes slideUp { from{opacity:0;transform:translateY(14px);} to{opacity:1;transform:translateY(0);} }
   .auth-logo { font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:900; letter-spacing:0.07em; text-transform:uppercase; color:var(--white); display:flex; align-items:center; gap:6px; margin-bottom:28px; }
   .auth-logo em { color:var(--accent); font-style:normal; }
-  .auth-logo .portal-tag { font-size:9px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; background:var(--accent-dim); color:var(--accent); border:1px solid var(--accent-rim); border-radius:3px; padding:2px 6px; }
+  .auth-logo .portal-tag { font-size:9px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.35); border-radius:3px; padding:2px 6px; }
   .auth-card h2 { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--snow); margin-bottom:4px; }
   .auth-card .sub { font-size:12px; color:var(--muted); margin-bottom:24px; }
 
@@ -68,7 +68,7 @@ const css = `
 
   /* ── BUTTONS ── */
   .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:8px 16px; border-radius:5px; font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; border:none; transition:all 0.15s; white-space:nowrap; }
-  .btn-primary { background:var(--accent); color:var(--white); }
+  .btn-primary { background:var(--accent); color:#000; }
   .btn-primary:hover:not(:disabled) { background:var(--accent-hot); }
   .btn-primary:disabled { opacity:0.4; cursor:not-allowed; }
   .btn-ghost { background:transparent; border:1px solid var(--border); color:var(--body); }
@@ -84,7 +84,7 @@ const css = `
   .sidebar-header { height:var(--topbar-h); display:flex; align-items:center; padding:0 16px; border-bottom:1px solid var(--border); flex-shrink:0; }
   .sidebar-logo { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:900; letter-spacing:0.07em; text-transform:uppercase; color:var(--white); }
   .sidebar-logo em { color:var(--accent); font-style:normal; }
-  .sidebar-portal-tag { margin-left:8px; font-size:9px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; background:var(--accent-dim); color:var(--accent); border:1px solid var(--accent-rim); border-radius:3px; padding:2px 6px; }
+  .sidebar-portal-tag { margin-left:8px; font-size:9px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; background:rgba(59,130,246,0.15); color:#60a5fa; border:1px solid rgba(59,130,246,0.35); border-radius:3px; padding:2px 6px; }
   .sidebar-nav { flex:1; padding:8px; display:flex; flex-direction:column; gap:2px; overflow-y:auto; }
   .sidebar-section-label { font-size:9px; font-weight:700; letter-spacing:0.22em; text-transform:uppercase; color:var(--dim); padding:10px 8px 4px; }
   .nav-item { display:flex; align-items:center; gap:9px; padding:0 10px; height:32px; border-radius:4px; font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; border:none; background:transparent; color:var(--muted); transition:all 0.15s; width:100%; text-align:left; }
