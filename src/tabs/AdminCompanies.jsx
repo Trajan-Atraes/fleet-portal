@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { SUPABASE_URL } from "../lib/supabase";
-
-const IcoPlus = () => <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+import { IcoPlus } from "../components/Icons";
 
 // ─── COMPANIES ────────────────────────────────────────────────
 export default function Companies() {
@@ -18,8 +17,12 @@ export default function Companies() {
   const [error, setError]           = useState("");
   const [success, setSuccess]       = useState("");
 
+  // Company detail editing
+  const [editingDetails, setEditingDetails] = useState(false);
+  const [detailForm, setDetailForm]         = useState({ name:"", email:"", phone:"", address:"" });
+
   const [accountManagers, setAccountManagers] = useState([]);
-  const [amAssignments, setAmAssignments]     = useState([]); // { account_manager_id, company_id }
+  const [amAssignments, setAmAssignments]     = useState([]);
   const [amSelect, setAmSelect]               = useState("");
 
   const load = async () => {
@@ -91,6 +94,24 @@ export default function Companies() {
     load();
   };
 
+  const handleSaveDetails = async () => {
+    if (!selected || !detailForm.name) { setError("DSP name is required."); return; }
+    setSaving(true); setError(""); setSuccess("");
+    const { error: err } = await supabase.from("companies")
+      .update({ name: detailForm.name, email: detailForm.email, phone: detailForm.phone, address: detailForm.address })
+      .eq("id", selected.id);
+    setSaving(false);
+    if (err) { setError(err.message); return; }
+    setSuccess("DSP details updated.");
+    setEditingDetails(false);
+    load();
+  };
+
+  const startEditDetails = (c) => {
+    setDetailForm({ name: c.name || "", email: c.email || "", phone: c.phone || "", address: c.address || "" });
+    setEditingDetails(true);
+  };
+
   const companyUserCount = id => users.filter(u => u.company_id === id).length;
   const companyAMCount   = id => amAssignments.filter(a => a.company_id === id).length;
 
@@ -135,7 +156,7 @@ export default function Companies() {
           {companies.map(c => (
             <div key={c.id}
               className={`company-card ${selected?.id === c.id ? "selected" : ""}`}
-              onClick={() => { if (selected?.id !== c.id) { setAmSelect(""); setError(""); setSuccess(""); } setSelected(selected?.id === c.id ? null : c); }}>
+              onClick={() => { if (selected?.id !== c.id) { setAmSelect(""); setError(""); setSuccess(""); setEditingDetails(false); } setSelected(selected?.id === c.id ? null : c); }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
                 <div>
                   <div className="company-name">{c.name}</div>
@@ -153,6 +174,39 @@ export default function Companies() {
 
               {selected?.id === c.id && (
                 <div className="company-expanded" onClick={e => e.stopPropagation()}>
+                  {/* Contact Info Editing */}
+                  <div style={{ marginBottom:14 }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:8 }}>
+                      <div className="expanded-label" style={{ marginBottom:0 }}>Contact Info</div>
+                      {!editingDetails && (
+                        <button className="btn btn-ghost btn-sm" onClick={() => startEditDetails(c)}
+                          style={{ fontSize:10, padding:"2px 8px" }}>Edit</button>
+                      )}
+                    </div>
+                    {editingDetails ? (
+                      <div>
+                        <div className="form-grid" style={{ gap:6, marginBottom:8 }}>
+                          <div className="field"><label>DSP Name *</label><input value={detailForm.name} onChange={e => setDetailForm(f=>({...f,name:e.target.value}))} /></div>
+                          <div className="field"><label>Email</label><input value={detailForm.email} onChange={e => setDetailForm(f=>({...f,email:e.target.value}))} /></div>
+                          <div className="field"><label>Phone</label><input value={detailForm.phone} onChange={e => setDetailForm(f=>({...f,phone:e.target.value}))} /></div>
+                          <div className="field"><label>Address</label><input value={detailForm.address} onChange={e => setDetailForm(f=>({...f,address:e.target.value}))} /></div>
+                        </div>
+                        <div style={{ display:"flex", gap:6, justifyContent:"flex-end" }}>
+                          <button className="btn btn-ghost btn-sm" onClick={() => setEditingDetails(false)}>Cancel</button>
+                          <button className="btn btn-primary btn-sm" onClick={handleSaveDetails} disabled={saving}>{saving ? "Saving…" : "Save Details"}</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="company-meta" style={{ fontSize:12, lineHeight:1.6 }}>
+                        {c.email && <div>{c.email}</div>}
+                        {c.phone && <div>{c.phone}</div>}
+                        {c.address && <div>{c.address}</div>}
+                        {!c.email && !c.phone && !c.address && <div style={{ color:"var(--dim)" }}>No contact info set.</div>}
+                      </div>
+                    )}
+                  </div>
+
+                  <div style={{ borderTop:"1px solid var(--rim)", paddingTop:12 }}>
                   <div className="expanded-label">Users</div>
 
                   {users.filter(u => u.company_id === c.id).length === 0 ? (
@@ -160,8 +214,15 @@ export default function Companies() {
                   ) : (
                     users.filter(u => u.company_id === c.id).map(u => (
                       <div key={u.id} className="user-row">
-                        <span className="user-id-text">{u.user_id}</span>
-                        <button className="btn btn-danger btn-sm" onClick={() => handleRemoveUser(u.user_id, c.id)}>Remove</button>
+                        <span className="user-id-text">{u.display_name ? <><strong style={{ color:"var(--text)" }}>{u.display_name}</strong> <span className="mono" style={{ fontSize:10 }}>{u.user_id.slice(0,8)}…</span></> : <span className="mono">{u.user_id}</span>}</span>
+                        <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+                          <button
+                            className="btn btn-ghost btn-sm"
+                            style={{ fontSize:9, padding:"1px 7px", color: u.is_billing_user ? "#60a5fa" : "var(--muted)", borderColor: u.is_billing_user ? "rgba(59,130,246,0.35)" : undefined }}
+                            onClick={async (e) => { e.stopPropagation(); await supabase.from("company_users").update({ is_billing_user: !u.is_billing_user }).eq("id", u.id); load(); }}
+                          >{u.is_billing_user ? "Billing ✓" : "Billing"}</button>
+                          <button className="btn btn-danger btn-sm" onClick={() => handleRemoveUser(u.user_id, c.id)}>Remove</button>
+                        </div>
                       </div>
                     ))
                   )}
@@ -204,6 +265,7 @@ export default function Companies() {
                         {saving ? "…" : "Assign"}
                       </button>
                     </div>
+                  </div>
                   </div>
                 </div>
               )}

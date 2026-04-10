@@ -1,8 +1,7 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { SUPABASE_URL } from "../lib/supabase";
-
-const IcoPlus = () => <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+import { IcoPlus } from "../components/Icons";
 
 // ─── MECHANICS ────────────────────────────────────────────────
 export default function Mechanics() {
@@ -13,6 +12,7 @@ export default function Mechanics() {
   const [saving, setSaving]       = useState(false);
   const [error, setError]         = useState("");
   const [success, setSuccess]     = useState("");
+  const [confirmRemoveId, setConfirmRemoveId] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -42,7 +42,8 @@ export default function Mechanics() {
   };
 
   const handleDelete = async (id, name) => {
-    if (!window.confirm(`Remove ${name} as a mechanic? This will revoke their portal access.`)) return;
+    if (confirmRemoveId !== id) { setConfirmRemoveId(id); return; }
+    setConfirmRemoveId(null);
     const { error: err } = await supabase.from("mechanics").delete().eq("id", id);
     if (err) { setError(err.message); return; }
     setSuccess(`${name} removed.`);
@@ -104,7 +105,10 @@ export default function Mechanics() {
                     {new Date(m.created_at).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" })}
                   </td>
                   <td style={{ textAlign:"right" }}>
-                    <button className="btn btn-danger btn-sm" onClick={() => handleDelete(m.id, m.name)}>Delete</button>
+                    {confirmRemoveId === m.id
+                      ? <div style={{ display:"flex", gap:4, justifyContent:"flex-end" }}><button className="btn btn-ghost btn-sm" onClick={() => setConfirmRemoveId(null)}>Cancel</button><button className="btn btn-sm" style={{ background:"#ef4444", color:"#fff" }} onClick={() => handleDelete(m.id, m.name)}>Confirm</button></div>
+                      : <button className="btn btn-danger btn-sm" onClick={() => handleDelete(m.id, m.name)}>Delete</button>
+                    }
                   </td>
                 </tr>
               ))}

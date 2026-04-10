@@ -37,12 +37,17 @@
 | company_users               | Users: SELECT own row; Admins: full; AMs: full for assigned companies |
 | admins                      | Admins: SELECT/UPDATE own row only (`auth.uid() = id`) |
 | mechanics                   | Mechanics: SELECT own row; Admins: SELECT/UPDATE/DELETE all |
-| invoices                    | Admins: full; Mechanics: SELECT all (UI only queries `service_request_id, status`); AMs: SELECT all |
+| invoices                    | Admins: full; Mechanics: SELECT all (UI only queries `service_request_id, status`); AMs: SELECT all; Clients: SELECT own company, non-incognito only (`invoices_client_select`) |
 | pricing_history             | Admins: full; AMs: SELECT all |
 | pricing_intelligence (view) | No RLS — inherits from pricing_history |
 | account_managers            | AMs: SELECT own row; Admins: SELECT/UPDATE/DELETE all |
 | account_manager_companies   | AMs: SELECT own; Admins: SELECT/INSERT/DELETE all |
 | vehicles                    | Admins: full (`vehicles_admin_all`); Mechanics: SELECT only; AMs: SELECT/INSERT/UPDATE for assigned companies |
+| vehicle_groups              | Admins: full; AMs: full for assigned companies; Clients: SELECT own company |
+| audit_logs                  | Super admins: SELECT only (`is_super = true`); writes via triggers only |
+| audit_alerts                | Super admins: SELECT/UPDATE only (`is_super = true`) |
+| notifications               | Admins: SELECT where `target_role IN ('admin','all')`; Mechanics: SELECT where `target_role IN ('mechanic','all')`; AMs: SELECT where `target_role IN ('account_manager','all')`; Super admins: INSERT/DELETE |
+| notification_reads          | All users: SELECT/INSERT/DELETE own rows only (`auth.uid() = user_id`) |
 
 **RLS silent failures** are almost always a missing policy — check Supabase policies first.
 `company_users` RLS has separate policies for users vs admins — both must exist.

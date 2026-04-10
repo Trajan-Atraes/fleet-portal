@@ -1,9 +1,8 @@
 import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
+import { ssGet, ssSet } from "../lib/constants";
 import { VehicleStatusBadge } from "../components/VehicleStatusBadge";
-
-const IcoRefresh = () => <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>;
-const IcoPlus    = () => <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+import { IcoRefresh, IcoPlus } from "../components/Icons";
 
 // ─── VEHICLE REGISTRY ─────────────────────────────────────────
 export default function VehicleRegistry({ adminDisplayName }) {
@@ -11,42 +10,59 @@ export default function VehicleRegistry({ adminDisplayName }) {
   const [companies, setCompanies] = useState([]);
   const [billToContacts, setBillToContacts] = useState([]);
   const [loading, setLoading]     = useState(true);
-  const [search, setSearch]               = useState("");
-  const [companyFilter, setCompanyFilter] = useState("");
-  const [statusFilter, setStatusFilter]   = useState("Active");
+  const [search, setSearch]               = useState(() => ssGet("vr_search", ""));
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [companyFilter, setCompanyFilter] = useState(() => ssGet("vr_company", ""));
+  const [statusFilter, setStatusFilter]   = useState(() => ssGet("vr_status", "Road Worthy"));
   const [selected, setSelected]   = useState(null);
   const [srHistory, setSrHistory] = useState([]);
   const [srLoading, setSrLoading] = useState(false);
   const [statusLogs, setStatusLogs] = useState([]);
   const [showForm, setShowForm]   = useState(false);
   const [editVehicle, setEditVehicle] = useState(null);
-  const [form, setForm] = useState({ company_id:"", vehicle_id:"", vin:"", vehicle_make:"", vehicle_model:"", vehicle_year:"", license_plate:"", notes:"", status:"Active", default_bill_to_id:"" });
+  const [form, setForm] = useState({ company_id:"", vehicle_id:"", vin:"", vehicle_make:"", vehicle_model:"", vehicle_year:"", license_plate:"", notes:"", status:"Road Worthy", default_bill_to_id:"", group_id:"" });
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState("");
   const [success, setSuccess] = useState("");
+  const [groups, setGroups] = useState([]);
+  const [showGroupMgmt, setShowGroupMgmt] = useState(false);
+  const [groupForm, setGroupForm] = useState({ name:"", company_id:"" });
+  const [editGroupId, setEditGroupId] = useState(null);
+  const [editGroupName, setEditGroupName] = useState("");
+  const [confirmDeleteGroup, setConfirmDeleteGroup] = useState(null);
 
   const load = async () => {
     setLoading(true);
-    const [{ data: vehs }, { data: cos }, { data: btc }] = await Promise.all([
-      supabase.from("vehicles").select("*").order("vehicle_id"),
+    const [{ data: vehs }, { data: cos }, { data: btc }, { data: grps }] = await Promise.all([
+      supabase.from("vehicles").select("*").order("vehicle_id").limit(1000),
       supabase.from("companies").select("id, name").order("name"),
       supabase.from("bill_to_contacts").select("id,name").order("name"),
+      supabase.from("vehicle_groups").select("*").order("sort_order").order("name"),
     ]);
     setVehicles(vehs || []);
     setCompanies(cos || []);
     setBillToContacts(btc || []);
+    setGroups(grps || []);
     setLoading(false);
   };
   useEffect(() => { load(); }, []);
 
   const companiesMap = Object.fromEntries((companies || []).map(c => [c.id, c.name]));
 
+  // Persist filters to sessionStorage
+  useEffect(() => { ssSet("vr_search", search); }, [search]);
+  useEffect(() => { ssSet("vr_company", companyFilter); }, [companyFilter]);
+  useEffect(() => { ssSet("vr_status", statusFilter); }, [statusFilter]);
+
+  // Debounce search (300ms)
+  useEffect(() => { const t = setTimeout(() => setDebouncedSearch(search), 300); return () => clearTimeout(t); }, [search]);
+
   const filtered = vehicles
     .filter(v => statusFilter === "all" ? true : v.status === statusFilter)
     .filter(v => !companyFilter || v.company_id === companyFilter)
     .filter(v => {
-      if (!search) return true;
-      const q = search.toLowerCase();
+      if (!debouncedSearch) return true;
+      const q = debouncedSearch.toLowerCase();
       return (
         (v.vehicle_id || "").toLowerCase().includes(q) ||
         (v.vin || "").toLowerCase().includes(q) ||
@@ -59,7 +75,7 @@ export default function VehicleRegistry({ adminDisplayName }) {
     });
 
   const counts = {
-    Active:        vehicles.filter(v => v.status === "Active").length,
+    roadWorthy:    vehicles.filter(v => v.status === "Road Worthy").length,
     Retired:       vehicles.filter(v => v.status === "Retired").length,
     notRoadWorthy: vehicles.filter(v => v.status === "Not Road Worthy").length,
     total:         vehicles.length,
@@ -69,7 +85,7 @@ export default function VehicleRegistry({ adminDisplayName }) {
 
   const openAdd = () => {
     setEditVehicle(null);
-    setForm({ company_id:"", vehicle_id:"", vin:"", vehicle_make:"", vehicle_model:"", vehicle_year:"", license_plate:"", notes:"", status:"Active", default_bill_to_id:"" });
+    setForm({ company_id:"", vehicle_id:"", vin:"", vehicle_make:"", vehicle_model:"", vehicle_year:"", license_plate:"", notes:"", status:"Road Worthy", default_bill_to_id:"", group_id:"" });
     setError("");
     setShowForm(true);
   };
@@ -77,7 +93,7 @@ export default function VehicleRegistry({ adminDisplayName }) {
   const openEdit = (v, e) => {
     if (e) e.stopPropagation();
     setEditVehicle(v);
-    setForm({ company_id: v.company_id, vehicle_id: v.vehicle_id, vin: v.vin || "", vehicle_make: v.vehicle_make || "", vehicle_model: v.vehicle_model || "", vehicle_year: v.vehicle_year || "", license_plate: v.license_plate || "", notes: v.notes || "", status: v.status || "Active", default_bill_to_id: v.default_bill_to_id || "" });
+    setForm({ company_id: v.company_id, vehicle_id: v.vehicle_id, vin: v.vin || "", vehicle_make: v.vehicle_make || "", vehicle_model: v.vehicle_model || "", vehicle_year: v.vehicle_year || "", license_plate: v.license_plate || "", notes: v.notes || "", status: v.status || "Road Worthy", default_bill_to_id: v.default_bill_to_id || "", group_id: v.group_id || "" });
     setError("");
     setShowForm(true);
   };
@@ -89,7 +105,7 @@ export default function VehicleRegistry({ adminDisplayName }) {
     setStatusLogs([]);
     const [{ data: srs }, { data: logs }] = await Promise.all([
       supabase.from("service_requests")
-        .select("id, request_number, service_type, status, created_at, mileage")
+        .select("id, request_number, status, created_at, updated_at, mileage, urgency, updated_by_name, estimated_completion, service_lines(line_letter, service_name, is_completed)")
         .eq("vehicle_registry_id", v.id)
         .order("created_at", { ascending: false }),
       supabase.from("vehicle_status_logs")
@@ -105,6 +121,19 @@ export default function VehicleRegistry({ adminDisplayName }) {
   const handleSave = async () => {
     if (!form.company_id || !form.vehicle_id.trim()) { setError("Company and Vehicle ID are required."); return; }
     setSaving(true); setError("");
+
+    // VIN duplicate check
+    if (form.vin.trim()) {
+      const { data: vinMatch } = await supabase.from("vehicles").select("id, vehicle_id, companies(name)")
+        .eq("vin", form.vin.trim()).limit(1).maybeSingle();
+      if (vinMatch && vinMatch.id !== editVehicle?.id) {
+        const owner = vinMatch.companies?.name || "another company";
+        setError(`A vehicle with this VIN already exists: ${vinMatch.vehicle_id} (${owner}).`);
+        setSaving(false);
+        return;
+      }
+    }
+
     if (editVehicle) {
       const { error: err } = await supabase.from("vehicles").update({
         vehicle_id:          form.vehicle_id.trim(),
@@ -116,6 +145,7 @@ export default function VehicleRegistry({ adminDisplayName }) {
         notes:               form.notes.trim() || null,
         status:              form.status,
         default_bill_to_id:  form.default_bill_to_id || null,
+        group_id:            form.group_id || null,
       }).eq("id", editVehicle.id);
       setSaving(false);
       if (err) { setError(err.code === "23505" ? "A vehicle with this ID already exists for this company." : err.message); return; }
@@ -142,6 +172,7 @@ export default function VehicleRegistry({ adminDisplayName }) {
         notes:              form.notes.trim() || null,
         status:             form.status,
         default_bill_to_id: form.default_bill_to_id || null,
+        group_id:           form.group_id || null,
       });
       setSaving(false);
       if (err) { setError(err.code === "23505" ? "A vehicle with this ID already exists for this company." : err.message); return; }
@@ -155,7 +186,6 @@ export default function VehicleRegistry({ adminDisplayName }) {
   const handleStatusChange = async (v, newStatus, e) => {
     e.stopPropagation();
     if (newStatus === v.status) return;
-    if (!window.confirm(`Change "${v.vehicle_id}" status to ${newStatus}?`)) { load(); return; }
     const { error: err } = await supabase.from("vehicles").update({ status: newStatus }).eq("id", v.id);
     if (err) { setError(err.message); return; }
     const { data: { session } } = await supabase.auth.getSession();
@@ -181,13 +211,14 @@ export default function VehicleRegistry({ adminDisplayName }) {
         </div>
         <div style={{ display:"flex", gap:8 }}>
           <button className="btn btn-ghost btn-sm" onClick={load}><IcoRefresh /></button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowGroupMgmt(true)}>Manage Groups</button>
           <button className="btn btn-primary btn-sm" onClick={openAdd}><IcoPlus /> Add Vehicle</button>
         </div>
       </div>
 
       <div className="stats-row stats-4">
         <div className="stat-card"><div className="stat-label">Total Vehicles</div><div className="stat-value">{counts.total}</div></div>
-        <div className="stat-card"><div className="stat-label">Active</div><div className="stat-value c-green">{counts.Active}</div></div>
+        <div className="stat-card"><div className="stat-label">Road Worthy</div><div className="stat-value c-green">{counts.roadWorthy}</div></div>
         <div className="stat-card"><div className="stat-label">Retired</div><div className="stat-value" style={{ color:"var(--dim)" }}>{counts.Retired}</div></div>
         <div className="stat-card"><div className="stat-label">Not Road Worthy</div><div className="stat-value" style={{ color:"var(--amber)" }}>{counts.notRoadWorthy}</div></div>
       </div>
@@ -197,9 +228,9 @@ export default function VehicleRegistry({ adminDisplayName }) {
 
       <div className="toolbar" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
         <div className="filters">
-          {[["Active","Active"],["Retired","Retired"],["Not Road Worthy","Not Road Worthy"],["all","All"]].map(([id, label]) => (
+          {[["Road Worthy","Road Worthy"],["Retired","Retired"],["Not Road Worthy","Not Road Worthy"],["all","All"]].map(([id, label]) => (
             <button key={id} className={`filter-btn ${statusFilter===id?"active":""}`} onClick={() => setStatusFilter(id)}>
-              {label} ({id === "Active" ? counts.Active : id === "Retired" ? counts.Retired : id === "Not Road Worthy" ? counts.notRoadWorthy : counts.total})
+              {label} ({id === "Road Worthy" ? counts.roadWorthy : id === "Retired" ? counts.Retired : id === "Not Road Worthy" ? counts.notRoadWorthy : counts.total})
             </button>
           ))}
           {companyFilter && (
@@ -256,7 +287,7 @@ export default function VehicleRegistry({ adminDisplayName }) {
                         onChange={e => handleStatusChange(v, e.target.value, e)}
                         style={{ fontSize:11, padding:"3px 6px", borderRadius:5, border:"1px solid var(--border)", background:"var(--raised)", color:"var(--soft)", cursor:"pointer" }}
                       >
-                        <option value="Active">Active</option>
+                        <option value="Road Worthy">Active</option>
                         <option value="Retired">Retired</option>
                         <option value="Not Road Worthy">Not Road Worthy</option>
                       </select>
@@ -313,17 +344,22 @@ export default function VehicleRegistry({ adminDisplayName }) {
               ) : (
                 <div className="table-wrap">
                   <table>
-                    <thead><tr><th>SR #</th><th>Service</th><th>Status</th><th>Mileage</th><th>Date</th></tr></thead>
+                    <thead><tr><th>SR #</th><th>Date</th><th>Services</th><th>Status</th><th>Mechanic</th><th>Mileage</th><th>Est. Completion</th></tr></thead>
                     <tbody>
-                      {srHistory.map(r => (
-                        <tr key={r.id} style={{ cursor:"default" }}>
-                          <td><span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13, color:"var(--accent)" }}>SR-{r.request_number}</span></td>
-                          <td style={{ fontSize:12 }}>{r.service_type || "—"}</td>
-                          <td><span style={{ fontSize:11, textTransform:"uppercase", fontWeight:700, color: r.status==="completed"?"var(--green)":r.status==="in_progress"?"var(--blue)":r.status==="cancelled"?"var(--red)":"var(--muted)" }}>{r.status}</span></td>
-                          <td style={{ fontSize:12, color:"var(--soft)" }}>{r.mileage ? Number(r.mileage).toLocaleString() : "—"}</td>
-                          <td style={{ fontSize:11, color:"var(--muted)", whiteSpace:"nowrap" }}>{fmt(r.created_at)}</td>
-                        </tr>
-                      ))}
+                      {srHistory.map(r => {
+                        const svcNames = (r.service_lines || []).map(l => l.service_name).filter(Boolean).join(", ");
+                        return (
+                          <tr key={r.id} style={{ cursor:"default" }}>
+                            <td><span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13, color:"var(--accent)" }}>{r.request_number}</span></td>
+                            <td style={{ fontSize:11, color:"var(--body)", whiteSpace:"nowrap" }}>{fmt(r.created_at)}</td>
+                            <td style={{ fontSize:12, maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{svcNames || "—"}</td>
+                            <td><span style={{ fontSize:11, textTransform:"uppercase", fontWeight:700, color: r.status==="completed"?"var(--green)":r.status==="in_progress"?"var(--blue)":r.status==="cancelled"?"var(--red)":"var(--muted)" }}>{r.status?.replace("_"," ")}</span></td>
+                            <td style={{ fontSize:12, color:"var(--soft)" }}>{r.updated_by_name || "—"}</td>
+                            <td style={{ fontSize:12, color:"var(--soft)" }}>{r.mileage ? Number(r.mileage).toLocaleString() : "—"}</td>
+                            <td style={{ fontSize:11, color: r.estimated_completion ? "var(--body)" : "var(--dim)", whiteSpace:"nowrap" }}>{r.estimated_completion ? new Date(r.estimated_completion + "T00:00:00").toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }) : "—"}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -390,16 +426,23 @@ export default function VehicleRegistry({ adminDisplayName }) {
                 <div className="field" style={{ gridColumn:"1/-1" }}>
                   <label>Status</label>
                   <select value={form.status} onChange={e => fv("status", e.target.value)}>
-                    <option value="Active">Active</option>
+                    <option value="Road Worthy">Active</option>
                     <option value="Retired">Retired</option>
                     <option value="Not Road Worthy">Not Road Worthy</option>
                   </select>
                 </div>
                 <div className="field" style={{ gridColumn:"1/-1" }}>
-                  <label>Default Bill To <span style={{ color:"var(--muted)", fontWeight:400, textTransform:"none", letterSpacing:0 }}>(optional)</span></label>
+                  <label>Default Bill To</label>
                   <select value={form.default_bill_to_id} onChange={e => fv("default_bill_to_id", e.target.value)}>
-                    <option value="">— None —</option>
+                    <option value="">— Company (default) —</option>
                     {billToContacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                  </select>
+                </div>
+                <div className="field" style={{ gridColumn:"1/-1" }}>
+                  <label>Vehicle Group</label>
+                  <select value={form.group_id} onChange={e => fv("group_id", e.target.value)}>
+                    <option value="">— Unassigned —</option>
+                    {groups.filter(g => g.company_id === (editVehicle?.company_id || form.company_id)).map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                   </select>
                 </div>
                 <div className="field" style={{ gridColumn:"1/-1" }}>
@@ -411,6 +454,78 @@ export default function VehicleRegistry({ adminDisplayName }) {
                 <button className="btn btn-ghost btn-sm" onClick={() => setShowForm(false)}>Cancel</button>
                 <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : editVehicle ? "Save Changes" : "Add Vehicle"}</button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── GROUP MANAGEMENT MODAL ── */}
+      {showGroupMgmt && (
+        <div className="modal-overlay" onClick={() => setShowGroupMgmt(false)}>
+          <div className="modal" style={{ maxWidth:480 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <div><h3>Vehicle Groups</h3><div className="modal-head-sub">Manage groups per DSP — vehicles can be assigned to a group</div></div>
+              <button className="modal-close" onClick={() => setShowGroupMgmt(false)}>×</button>
+            </div>
+            <div className="modal-body">
+              {/* Add group */}
+              <div style={{ display:"flex", gap:6, marginBottom:14 }}>
+                <select value={groupForm.company_id} onChange={e => setGroupForm(f => ({ ...f, company_id: e.target.value }))} style={{ flex:1 }}>
+                  <option value="">— Select DSP —</option>
+                  {companies.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                </select>
+                <input value={groupForm.name} onChange={e => setGroupForm(f => ({ ...f, name: e.target.value }))} placeholder="Group name" style={{ flex:1 }} />
+                <button className="btn btn-primary btn-sm" disabled={!groupForm.company_id || !groupForm.name.trim()} onClick={async () => {
+                  const { error: err } = await supabase.from("vehicle_groups").insert({ company_id: groupForm.company_id, name: groupForm.name.trim() });
+                  if (err) { setError(err.code === "23505" ? "Group name already exists for this DSP." : err.message); return; }
+                  setGroupForm({ name:"", company_id: groupForm.company_id });
+                  load();
+                }}>Add</button>
+              </div>
+
+              {/* List by company */}
+              {companies.filter(c => groups.some(g => g.company_id === c.id)).map(c => (
+                <div key={c.id} style={{ marginBottom:14 }}>
+                  <div style={{ fontSize:10, fontWeight:600, letterSpacing:"0.15em", textTransform:"uppercase", color:"var(--muted)", marginBottom:6 }}>{c.name}</div>
+                  {groups.filter(g => g.company_id === c.id).map(g => (
+                    <div key={g.id} style={{ display:"flex", alignItems:"center", justifyContent:"space-between", padding:"5px 0", borderBottom:"1px solid var(--border)" }}>
+                      {editGroupId === g.id ? (
+                        <div style={{ display:"flex", gap:4, flex:1 }}>
+                          <input value={editGroupName} onChange={e => setEditGroupName(e.target.value)} style={{ flex:1 }} autoFocus />
+                          <button className="btn btn-primary btn-sm" onClick={async () => {
+                            if (!editGroupName.trim()) return;
+                            await supabase.from("vehicle_groups").update({ name: editGroupName.trim() }).eq("id", g.id);
+                            setEditGroupId(null);
+                            load();
+                          }}>Save</button>
+                          <button className="btn btn-ghost btn-sm" onClick={() => setEditGroupId(null)}>Cancel</button>
+                        </div>
+                      ) : (
+                        <>
+                          <span style={{ fontSize:13, color:"var(--text)" }}>{g.name}</span>
+                          <div style={{ display:"flex", gap:4 }}>
+                            <span style={{ fontSize:10, color:"var(--dim)", marginRight:6 }}>{vehicles.filter(v => v.group_id === g.id).length} vehicles</span>
+                            <button className="btn btn-ghost btn-sm" style={{ fontSize:10, padding:"1px 7px" }} onClick={() => { setEditGroupId(g.id); setEditGroupName(g.name); }}>Rename</button>
+                            {confirmDeleteGroup === g.id ? (
+                              <>
+                                <button className="btn btn-ghost btn-sm" style={{ fontSize:10, padding:"1px 7px" }} onClick={() => setConfirmDeleteGroup(null)}>Cancel</button>
+                                <button className="btn btn-sm" style={{ fontSize:10, padding:"1px 7px", background:"#ef4444", color:"#fff" }} onClick={async () => {
+                                  await supabase.from("vehicle_groups").delete().eq("id", g.id);
+                                  setConfirmDeleteGroup(null);
+                                  load();
+                                }}>Confirm</button>
+                              </>
+                            ) : (
+                              <button className="btn btn-ghost btn-sm" style={{ fontSize:10, padding:"1px 7px", color:"var(--red)", borderColor:"rgba(239,68,68,0.25)" }} onClick={() => setConfirmDeleteGroup(g.id)}>Delete</button>
+                            )}
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ))}
+              {groups.length === 0 && <div style={{ fontSize:12, color:"var(--dim)", textAlign:"center", padding:"16px 0" }}>No groups created yet. Select a DSP and add one above.</div>}
             </div>
           </div>
         </div>

@@ -1,9 +1,5 @@
-import { useState } from "react";
-import { createClient } from "@supabase/supabase-js";
-
-const SUPABASE_URL     = "https://kiayjlepwmdacojhpisq.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_b7zg8JgNWZuMjkG7_HnLeg_yylvj3MH";
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+import { useState, useRef, useEffect } from "react";
+import { supabase } from "../lib/supabase";
 
 // ─── NEXT AVAILABLE LETTER ────────────────────────────────────
 function nextLetter(lines) {
@@ -79,7 +75,9 @@ function PartsTagInput({ parts, onChange, readOnly }) {
 }
 
 // ─── SINGLE LINE CARD ─────────────────────────────────────────
-function LineCard({ line, onChange, readOnly }) {
+function LineCard({ line, onChange, readOnly, onDelete, canDelete, isAdmin }) {
+  const [confirmDelete, setConfirmDelete] = useState(false);
+
   return (
     <div style={{
       background: "var(--plate)", border: `1px solid ${line.is_completed ? "rgba(16,185,129,0.3)" : "var(--border)"}`,
@@ -94,14 +92,28 @@ function LineCard({ line, onChange, readOnly }) {
         }}>
           Line {line.line_letter} ///
         </div>
-        {line.is_completed && (
-          <span style={{
-            fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, fontWeight: 700,
-            letterSpacing: "0.2em", textTransform: "uppercase",
-            background: "rgba(16,185,129,0.12)", color: "var(--green)",
-            border: "1px solid rgba(16,185,129,0.3)", borderRadius: 3, padding: "2px 7px",
-          }}>Completed</span>
-        )}
+        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+          {line.is_completed && (
+            <span style={{
+              fontFamily: "'Barlow Condensed',sans-serif", fontSize: 9, fontWeight: 700,
+              letterSpacing: "0.2em", textTransform: "uppercase",
+              background: "rgba(16,185,129,0.12)", color: "var(--green)",
+              border: "1px solid rgba(16,185,129,0.3)", borderRadius: 3, padding: "2px 7px",
+            }}>Completed</span>
+          )}
+          {canDelete && !readOnly && (
+            confirmDelete ? (
+              <div style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                <span style={{ fontSize: 10, color: "var(--red)", fontWeight: 600 }}>Delete line + invoice?</span>
+                <button onClick={() => onDelete(line)} style={{ background: "#ef4444", border: "none", borderRadius: 3, color: "#fff", fontSize: 10, fontWeight: 700, padding: "2px 8px", cursor: "pointer" }}>Yes</button>
+                <button onClick={() => setConfirmDelete(false)} style={{ background: "transparent", border: "1px solid var(--border)", borderRadius: 3, color: "var(--muted)", fontSize: 10, padding: "2px 8px", cursor: "pointer" }}>No</button>
+              </div>
+            ) : (
+              <button onClick={() => setConfirmDelete(true)} title="Delete line"
+                style={{ background: "none", border: "1px solid rgba(239,68,68,0.25)", borderRadius: 3, color: "var(--red)", cursor: "pointer", fontSize: 11, padding: "1px 6px", lineHeight: 1.4 }}>×</button>
+            )
+          )}
+        </div>
       </div>
 
       {/* Service name */}
@@ -138,9 +150,24 @@ function LineCard({ line, onChange, readOnly }) {
 
       {/* Parts */}
       <div style={{ marginBottom: 12 }}>
-        <label style={{ display: "block", fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 5 }}>
-          Parts Used
-        </label>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 5 }}>
+          <label style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--muted)" }}>
+            Parts Used
+          </label>
+          {isAdmin && !readOnly && (
+            <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer", userSelect: "none" }}>
+              <input
+                type="checkbox"
+                checked={!!line.parts_ordered}
+                onChange={e => onChange("parts_ordered", e.target.checked)}
+                style={{ accentColor: "var(--accent)", width: 13, height: 13 }}
+              />
+              <span style={{ fontSize: 10, fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", color: line.parts_ordered ? "var(--accent)" : "var(--muted)" }}>
+                Ordered
+              </span>
+            </label>
+          )}
+        </div>
         <PartsTagInput
           parts={Array.isArray(line.parts) ? line.parts : []}
           onChange={val => onChange("parts", val)}
@@ -150,17 +177,34 @@ function LineCard({ line, onChange, readOnly }) {
 
       {/* Completed toggle */}
       {!readOnly && (
-        <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}>
-          <input
-            type="checkbox"
-            checked={!!line.is_completed}
-            onChange={e => onChange("is_completed", e.target.checked)}
-            style={{ accentColor: "var(--green)", width: 14, height: 14 }}
-          />
-          <span style={{ fontSize: 12, color: line.is_completed ? "var(--green)" : "var(--body)", fontWeight: line.is_completed ? 700 : 400 }}>
-            This service is completed
-          </span>
-        </label>
+        <div style={{ display: "flex", alignItems: "center", marginBottom: line.updated_by_name ? 10 : 0 }}>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", userSelect: "none" }}>
+            <input
+              type="checkbox"
+              checked={!!line.is_completed}
+              onChange={e => onChange("is_completed", e.target.checked)}
+              style={{ accentColor: "var(--green)", width: 14, height: 14 }}
+            />
+            <span style={{ fontSize: 12, color: line.is_completed ? "var(--green)" : "var(--body)", fontWeight: line.is_completed ? 700 : 400 }}>
+              This service is completed
+            </span>
+          </label>
+        </div>
+      )}
+
+      {/* Last edited by — always visible */}
+      {line.updated_by_name && (
+        <div style={{
+          borderTop: "1px solid var(--border)", marginTop: readOnly ? 0 : 2, paddingTop: 8,
+          fontSize: 10, color: "var(--muted)", fontStyle: "italic",
+          display: "flex", alignItems: "center", gap: 6,
+        }}>
+          <span style={{
+            display: "inline-block", width: 6, height: 6, borderRadius: "50%",
+            background: "var(--accent)", flexShrink: 0,
+          }} />
+          Last edited by <span style={{ fontWeight: 700, color: "var(--body)" }}>{line.updated_by_name}</span>
+        </div>
       )}
     </div>
   );
@@ -212,14 +256,78 @@ export function PartsSummary({ srId }) {
 }
 
 // ─── SERVICE LINES EDITOR (mechanic main component) ───────────
-export default function ServiceLinesEditor({ srId, initialLines, mechanic, srStatus, onSaved, onSubmitted }) {
+export default function ServiceLinesEditor({ srId, initialLines, mechanic, isAdmin, editorName, srStatus, onSaved, onSubmitted, scrollToPartsLine }) {
   const [lines, setLines] = useState(() =>
     (initialLines || []).map(l => ({ ...l, _new: false, _dirty: false }))
   );
   const [saving, setSaving]     = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError]       = useState("");
   const [savedMsg, setSavedMsg] = useState("");
+  const lineRefs = useRef({});
+
+  // Auto-save (mechanics + admins)
+  const autoSaveRef   = useRef(null);
+  const savingRef     = useRef(false);
+
+  useEffect(() => {
+    const hasDirty = lines.some(l => l._dirty);
+    if (!hasDirty || savingRef.current) return;
+
+    clearTimeout(autoSaveRef.current);
+    autoSaveRef.current = setTimeout(async () => {
+      if (savingRef.current) return;
+      savingRef.current = true;
+      setSavedMsg(""); setError("");
+      const ok = await persistLines();
+      if (ok) {
+        // Determine SR status transition
+        const allComplete = lines.length > 0 && lines.every(l => l.is_completed);
+        const newStatus = allComplete ? "completed"
+          : srStatus === "pending" ? "in_progress"
+          : null;
+
+        // Stamp SR updated_by on every line save
+        if (!isAdmin && mechanic) {
+          const srUpdate = {
+            updated_by_id:    mechanic.id,
+            updated_by_name:  mechanic.display_name || mechanic.name,
+            updated_by_email: mechanic.email,
+          };
+          if (newStatus) srUpdate.status = newStatus;
+          await supabase.from("service_requests").update(srUpdate).eq("id", srId);
+        }
+        if (isAdmin && editorName) {
+          const { data: { session } } = await supabase.auth.getSession();
+          const srUpdate = {
+            updated_by_id:    null,
+            updated_by_name:  editorName,
+            updated_by_email: session?.user?.email || "",
+          };
+          if (newStatus) srUpdate.status = newStatus;
+          await supabase.from("service_requests").update(srUpdate).eq("id", srId);
+        }
+        setSavedMsg("Auto-saved");
+        setTimeout(() => setSavedMsg(""), 2000);
+        onSaved?.();
+      }
+      savingRef.current = false;
+    }, 1500);
+
+    return () => clearTimeout(autoSaveRef.current);
+  }, [lines]);
+
+  // Cleanup on unmount
+  useEffect(() => () => clearTimeout(autoSaveRef.current), []);
+
+  // Scroll to first unchecked parts_ordered line
+  useEffect(() => {
+    if (!scrollToPartsLine) return;
+    const target = lines.find(l => !l.parts_ordered);
+    if (target) {
+      const el = lineRefs.current[target.line_letter];
+      if (el) setTimeout(() => el.scrollIntoView({ behavior: "smooth", block: "center" }), 200);
+    }
+  }, [scrollToPartsLine, lines.length]);
 
   const updateLine = (idx, key, val) => {
     setLines(prev => {
@@ -239,34 +347,22 @@ export default function ServiceLinesEditor({ srId, initialLines, mechanic, srSta
     }]);
   };
 
-  // After saving a line, sync invoice: pre-populate line_items (diagnostic always first),
-  // set service_type, and auto-advance draft → submitted when line is marked complete.
-  // Never touches invoices that are already past draft.
-  const syncInvoiceParts = async (lineId, serviceName, parts, isCompleted) => {
-    const { data: inv } = await supabase
-      .from("invoices")
-      .select("id, status")
-      .eq("service_line_id", lineId)
-      .maybeSingle();
-    if (!inv || inv.status !== "draft") return;
-
-    const lineItems = {
-      services: [{
-        name:        serviceName || "",
-        labor_hours: "",
-        labor_rate:  "220",
-        parts: [
-          { description: "Diagnostic Fee", quantity: "1", rate: "" },
-          ...(parts || []).map(p => ({ description: p, quantity: "1", rate: "" })),
-        ],
-      }],
-      settings: { taxType: "none", taxValue: "0", discountType: "none", discountValue: "0" },
-    };
-
-    const updates = { line_items: lineItems, service_type: serviceName || null };
-    if (isCompleted) updates.status = "submitted";
-
-    await supabase.from("invoices").update(updates).eq("id", inv.id);
+  const deleteLine = async (line) => {
+    // New unsaved line — just remove from state
+    if (line._new) {
+      setLines(prev => prev.filter(l => l.line_letter !== line.line_letter));
+      return;
+    }
+    // Delete linked invoice first (cascade won't cover it since service_line_id is SET NULL)
+    if (line.id) {
+      await supabase.from("invoices").delete().eq("service_line_id", line.id);
+      const { error: err } = await supabase.from("service_lines").delete().eq("id", line.id);
+      if (err) { setError("Delete failed: " + err.message); return; }
+    }
+    setLines(prev => prev.filter(l => l.line_letter !== line.line_letter));
+    setSavedMsg("Line deleted.");
+    setTimeout(() => setSavedMsg(""), 2500);
+    onSaved?.();
   };
 
   const persistLines = async () => {
@@ -283,27 +379,29 @@ export default function ServiceLinesEditor({ srId, initialLines, mechanic, srSta
           notes:        line.notes        || null,
           parts:        line.parts        || [],
           is_completed: !!line.is_completed,
+          parts_ordered: !!line.parts_ordered,
+          updated_by_name: editorName || null,
         }).select("id").single();
         if (err) { setError("Save failed: " + err.message); return false; }
         savedIds[line.line_letter] = data.id;
-        await syncInvoiceParts(data.id, line.service_name, line.parts, !!line.is_completed);
       } else {
         const { error: err } = await supabase.from("service_lines").update({
           service_name: line.service_name || null,
           notes:        line.notes        || null,
           parts:        line.parts        || [],
           is_completed: !!line.is_completed,
+          parts_ordered: !!line.parts_ordered,
+          updated_by_name: editorName || null,
         }).eq("id", line.id);
         if (err) { setError("Save failed: " + err.message); return false; }
-        await syncInvoiceParts(line.id, line.service_name, line.parts, !!line.is_completed);
       }
     }
 
-    // Mark all dirty lines clean, update IDs for new lines
+    // Mark all dirty lines clean, update IDs for new lines, refresh updated_by_name
     setLines(prev => prev.map(l => {
       if (!l._dirty) return l;
       const newId = savedIds[l.line_letter];
-      return { ...l, id: newId || l.id, _new: false, _dirty: false };
+      return { ...l, id: newId || l.id, _new: false, _dirty: false, updated_by_name: editorName || l.updated_by_name };
     }));
     return true;
   };
@@ -311,31 +409,11 @@ export default function ServiceLinesEditor({ srId, initialLines, mechanic, srSta
   const handleSave = async () => {
     setSaving(true); setError(""); setSavedMsg("");
     const ok = await persistLines();
+    if (!ok) { setSaving(false); return; }
     setSaving(false);
-    if (ok) {
-      setSavedMsg("Progress saved.");
-      setTimeout(() => setSavedMsg(""), 2500);
-      onSaved?.();
-    }
-  };
-
-  const handleSubmit = async () => {
-    setSubmitting(true); setError(""); setSavedMsg("");
-    const ok = await persistLines();
-    if (!ok) { setSubmitting(false); return; }
-
-    // Set SR status to in_progress (only if currently pending)
-    if (srStatus === "pending") {
-      const { error: err } = await supabase.from("service_requests").update({
-        status:           "in_progress",
-        updated_by_id:    mechanic.id,
-        updated_by_name:  mechanic.display_name || mechanic.name,
-        updated_by_email: mechanic.email,
-      }).eq("id", srId);
-      if (err) { setError("Status update failed: " + err.message); setSubmitting(false); return; }
-    }
-    setSubmitting(false);
-    onSubmitted?.();
+    setSavedMsg("Progress saved.");
+    setTimeout(() => setSavedMsg(""), 2500);
+    onSaved?.();
   };
 
   return (
@@ -349,12 +427,16 @@ export default function ServiceLinesEditor({ srId, initialLines, mechanic, srSta
       )}
 
       {lines.map((line, idx) => (
-        <LineCard
-          key={line.id || `new-${line.line_letter}`}
-          line={line}
-          onChange={(key, val) => updateLine(idx, key, val)}
-          readOnly={false}
-        />
+        <div key={line.id || `new-${line.line_letter}`} ref={el => { lineRefs.current[line.line_letter] = el; }}>
+          <LineCard
+            line={line}
+            onChange={(key, val) => updateLine(idx, key, val)}
+            readOnly={false}
+            canDelete={line.line_letter !== "A"}
+            onDelete={deleteLine}
+            isAdmin={isAdmin}
+          />
+        </div>
       ))}
 
       {/* Add Line */}
@@ -369,23 +451,14 @@ export default function ServiceLinesEditor({ srId, initialLines, mechanic, srSta
       {error    && <div className="error-box"   style={{ marginBottom: 10 }}>{error}</div>}
       {savedMsg && <div className="success-box" style={{ marginBottom: 10 }}>{savedMsg}</div>}
 
-      {/* Action buttons */}
-      <div style={{ display: "flex", gap: 8, justifyContent: "flex-end" }}>
-        <button
-          className="btn btn-ghost"
-          onClick={handleSave}
-          disabled={saving || submitting}
-        >
-          {saving ? "Saving…" : "Save Progress"}
-        </button>
-        {srStatus === "pending" && (
-          <button
-            className="btn btn-primary"
-            onClick={handleSubmit}
-            disabled={saving || submitting}
-          >
-            {submitting ? "Submitting…" : "Submit"}
-          </button>
+      {/* Auto-save status */}
+      <div style={{
+        display: "flex", gap: 8, justifyContent: "flex-end", alignItems: "center",
+        paddingTop: 8, marginTop: 4,
+        borderTop: "1px solid var(--border)",
+      }}>
+        {lines.some(l => l._dirty) && !savedMsg && (
+          <span style={{ fontSize: 11, color: "var(--dim)", fontStyle: "italic" }}>Unsaved changes…</span>
         )}
       </div>
     </div>

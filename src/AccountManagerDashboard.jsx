@@ -1,300 +1,23 @@
-import { useState, useEffect } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
+import { supabase, SUPABASE_URL } from "./lib/supabase";
 import NotesLog from "./components/NotesLog";
 import { PartsSummary } from "./components/ServiceLinesEditor";
+import { SvcPreviewCell } from "./components/StatusBadge";
+import { IcoBuilding, IcoDollar, IcoCar, IcoChevron, IcoMenu, IcoWrench, IcoPlus, IcoRefresh, IcoSparkle } from "./components/Icons";
 
-const SUPABASE_URL = "https://kiayjlepwmdacojhpisq.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_b7zg8JgNWZuMjkG7_HnLeg_yylvj3MH";
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// ─── ICONS ───────────────────────────────────────────────────
-const IcoBuilding = () => <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/></svg>;
-const IcoDollar   = () => <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>;
-const IcoCar      = () => <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M5 17H3a2 2 0 01-2-2V9a2 2 0 012-2h1l2-4h10l2 4h1a2 2 0 012 2v6a2 2 0 01-2 2h-2"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="16.5" cy="17.5" r="2.5"/></svg>;
-const IcoChevron  = () => <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>;
-const IcoMenu     = () => <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>;
-const IcoWrench   = () => <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>;
-const IcoPlus     = () => <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
-const IcoRefresh  = () => <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>;
-const IcoSparkle  = () => <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M12 2l2.4 7.4H22l-6.2 4.5 2.4 7.4L12 17l-6.2 4.3 2.4-7.4L2 9.4h7.6z"/></svg>;
-
-// ─── DESIGN TOKENS (ACCOUNT MANAGER — PURPLE ACCENT) ─────────
+// ─── PORTAL-SPECIFIC OVERRIDES (ACCOUNT MANAGER — PURPLE BADGE) ──
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&display=swap');
-
-  :root {
-    --base:    #070b11;
-    --surface: #0d1520;
-    --raised:  #111c2c;
-    --plate:   #162338;
-    --border:  #1c2d42;
-    --rim:     #243a55;
-    --dim:     #374f68;
-    --muted:   #526a84;
-    --soft:    #738fa8;
-    --body:    #9ab2c8;
-    --text:    #bfd0e2;
-    --snow:    #dae7f2;
-    --white:   #edf4fd;
-    --accent:     #f59e0b;
-    --accent-hot: #fbbf24;
-    --accent-dim: rgba(245,158,11,0.10);
-    --accent-rim: rgba(245,158,11,0.22);
-    --green:  #10b981; --green-dim:  rgba(16,185,129,0.12);
-    --red:    #ef4444; --red-dim:    rgba(239,68,68,0.12);
-    --blue:   #3b82f6; --blue-dim:   rgba(59,130,246,0.12);
-    --amber:  #f59e0b; --amber-dim:  rgba(245,158,11,0.12);
-    --teal:   #0d9488;
-    --sidebar-w: 216px;
-    --topbar-h:  44px;
-    --row-h:     32px;
-  }
-
-  html, body { height:100%; }
-  body { font-family:'Barlow',sans-serif; background:var(--base); color:var(--text); overflow:hidden; }
-  ::-webkit-scrollbar { width:5px; height:5px; }
-  ::-webkit-scrollbar-track { background:transparent; }
-  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
-  ::-webkit-scrollbar-thumb:hover { background:var(--rim); }
-
-  /* ── AUTH ── */
-  .auth-wrap { height:100dvh; display:flex; align-items:center; justify-content:center; background:var(--base); }
-  .auth-card {
-    width:100%; max-width:360px; padding:40px;
-    background:var(--raised); border:1px solid var(--border); border-radius:8px;
-    animation:slideUp 0.3s ease;
-  }
-  @keyframes slideUp { from{opacity:0;transform:translateY(14px);} to{opacity:1;transform:translateY(0);} }
-  .auth-logo {
-    font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:900;
-    letter-spacing:0.07em; text-transform:uppercase; color:var(--white);
-    display:flex; align-items:center; gap:6px; margin-bottom:28px;
-  }
-  .auth-logo em { color:var(--accent); font-style:normal; }
+  /* ── AM portal tag (purple) ── */
   .auth-logo .portal-tag {
-    font-size:9px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase;
-    background:rgba(139,92,246,0.15); color:#a78bfa; border:1px solid rgba(139,92,246,0.35);
-    border-radius:3px; padding:2px 6px;
+    background:rgba(139,92,246,0.15); color:#a78bfa;
+    border:1px solid rgba(139,92,246,0.35);
   }
-  .auth-card h2 {
-    font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700;
-    text-transform:uppercase; letter-spacing:0.05em; color:var(--snow); margin-bottom:4px;
-  }
-  .auth-card .sub { font-size:12px; color:var(--muted); margin-bottom:24px; }
-
-  /* ── FORM ── */
-  .field { margin-bottom:14px; }
-  label { display:block; font-size:10px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); margin-bottom:5px; }
-  input, select, textarea {
-    width:100%; background:var(--plate); border:1px solid var(--border);
-    border-radius:5px; padding:8px 11px; font-family:'Barlow',sans-serif;
-    font-size:13px; color:var(--white); outline:none;
-    transition:border-color 0.15s, box-shadow 0.15s;
-  }
-  input::placeholder, textarea::placeholder { color:var(--dim); }
-  input:focus, select:focus, textarea:focus { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-dim); }
-  select option { background:var(--surface); }
-  textarea { resize:vertical; min-height:80px; line-height:1.5; }
-
-  /* ── BUTTONS ── */
-  .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:8px 16px; border-radius:5px; font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; border:none; transition:all 0.15s; white-space:nowrap; }
-  .btn-primary { background:var(--accent); color:#000; }
-  .btn-primary:hover:not(:disabled) { background:var(--accent-hot); }
-  .btn-primary:active:not(:disabled) { transform:scale(0.97); }
-  .btn-primary:disabled { opacity:0.4; cursor:not-allowed; }
-  .btn-ghost { background:transparent; border:1px solid var(--border); color:var(--body); }
-  .btn-ghost:hover { border-color:var(--rim); color:var(--text); }
-  .btn-danger { background:transparent; border:1px solid rgba(239,68,68,0.25); color:var(--red); }
-  .btn-danger:hover { background:var(--red-dim); }
-  .btn-sm { padding:5px 11px; font-size:11px; }
-
-  /* ── FEEDBACK ── */
-  .error-box { background:var(--red-dim); border:1px solid rgba(239,68,68,0.25); border-radius:4px; padding:9px 12px; font-size:12px; color:#fca5a5; margin-bottom:14px; }
-  .success-box { background:var(--green-dim); border:1px solid rgba(16,185,129,0.25); border-radius:4px; padding:9px 12px; font-size:12px; color:#6ee7b7; margin-bottom:14px; }
-
-  /* ── SIDEBAR LAYOUT ── */
-  .app-shell { height:100dvh; display:flex; overflow:hidden; background:var(--base); }
-  .sidebar {
-    width:var(--sidebar-w); background:var(--surface); border-right:1px solid var(--border);
-    display:flex; flex-direction:column; flex-shrink:0; height:100%;
-  }
-  .sidebar-header {
-    height:var(--topbar-h); display:flex; align-items:center; padding:0 16px;
-    border-bottom:1px solid var(--border); flex-shrink:0;
-  }
-  .sidebar-logo { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:900; letter-spacing:0.07em; text-transform:uppercase; color:var(--white); }
-  .sidebar-logo em { color:var(--accent); font-style:normal; }
   .sidebar-portal-tag {
     margin-left:8px; font-size:9px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase;
     background:rgba(139,92,246,0.15); color:#a78bfa; border:1px solid rgba(139,92,246,0.35);
     border-radius:3px; padding:2px 6px;
   }
-  .sidebar-nav { flex:1; padding:8px; display:flex; flex-direction:column; gap:2px; overflow-y:auto; }
-  .sidebar-section-label { font-size:9px; font-weight:700; letter-spacing:0.22em; text-transform:uppercase; color:var(--dim); padding:10px 8px 4px; }
-  .nav-item {
-    display:flex; align-items:center; gap:9px; padding:0 10px; height:32px;
-    border-radius:4px; font-family:'Barlow Condensed',sans-serif; font-size:12px;
-    font-weight:700; letter-spacing:0.1em; text-transform:uppercase;
-    cursor:pointer; border:none; background:transparent; color:var(--muted);
-    transition:all 0.15s; width:100%; text-align:left;
-  }
-  .nav-item:hover { background:var(--raised); color:var(--text); }
-  .nav-item.active { background:var(--accent-dim); color:var(--accent); }
-  .sidebar-bottom { border-top:1px solid var(--border); padding:12px 14px; flex-shrink:0; }
-  .sidebar-user-email { font-size:10px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:8px; }
-
-  /* ── MAIN AREA ── */
-  .main-area { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
-  .main-header {
-    height:var(--topbar-h); background:var(--surface); border-bottom:1px solid var(--border);
-    display:flex; align-items:center; padding:0 20px; flex-shrink:0;
-  }
-  .main-header-title { font-family:'Barlow Condensed',sans-serif; font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; color:var(--snow); }
-  .main-content { flex:1; overflow-y:auto; padding:20px; }
-
-  /* ── STATS ── */
-  .stats-row { display:grid; gap:10px; margin-bottom:16px; }
-  .stats-5 { grid-template-columns:repeat(5,1fr); }
-  .stats-4 { grid-template-columns:repeat(4,1fr); }
-  .stat-card { background:var(--raised); border:1px solid var(--border); border-radius:5px; padding:12px 14px; }
-  .stat-label { font-size:10px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); margin-bottom:5px; }
-  .stat-value { font-family:'Barlow Condensed',sans-serif; font-size:30px; font-weight:900; color:var(--white); line-height:1; }
-  .stat-value.c-amber  { color:#f59e0b; }
-  .stat-value.c-blue   { color:#60a5fa; }
-  .stat-value.c-green  { color:#34d399; }
-  .stat-value.c-purple { color:#a78bfa; }
-
-  /* ── TABLE ── */
-  .table-wrap { background:var(--raised); border:1px solid var(--border); border-radius:5px; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; }
-  table { width:100%; border-collapse:collapse; }
-  thead tr { background:var(--surface); border-bottom:1px solid var(--border); }
-  th { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); padding:0 14px; height:30px; text-align:left; white-space:nowrap; }
-  td { padding:0 14px; height:32px; font-size:13px; border-bottom:1px solid rgba(28,45,66,0.6); vertical-align:middle; }
-  tr:last-child td { border-bottom:none; }
-  tbody tr:hover td { background:rgba(255,255,255,0.025); }
-  tbody tr { cursor:pointer; }
-  .mono { font-family:monospace; font-size:11px; letter-spacing:0.03em; color:var(--soft); }
-
-  /* ── BADGES ── */
-  .badge { display:inline-flex; align-items:center; gap:5px; padding:0 7px; height:18px; border-radius:3px; font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; white-space:nowrap; }
-  .badge-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
-
-  /* ── TOOLBAR ── */
-  .toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:10px; flex-wrap:wrap; }
-  .filters { display:flex; gap:5px; flex-wrap:wrap; align-items:center; }
-  .filter-btn { font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; padding:0 11px; height:24px; border-radius:3px; cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--muted); transition:all 0.15s; display:flex; align-items:center; }
-  .filter-btn:hover { border-color:var(--rim); color:var(--body); }
-  .filter-btn.active { background:var(--accent); border-color:var(--accent); color:#000; }
-  .filter-chip { display:inline-flex; align-items:center; gap:5px; padding:0 8px; height:24px; border-radius:3px; background:var(--blue-dim); border:1px solid rgba(59,130,246,0.3); color:#60a5fa; font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; }
-  .filter-chip-x { cursor:pointer; opacity:0.7; font-size:15px; line-height:1; margin-left:2px; }
-  .filter-chip-x:hover { opacity:1; }
-  .clickable-val { cursor:pointer; }
-  .clickable-val:hover { color:var(--accent) !important; text-decoration:underline; text-decoration-style:dotted; }
-
-  /* ── SERVICES / LINE ITEMS ── */
-  .service-card { background:var(--plate); border:1px solid var(--border); border-radius:6px; padding:14px; margin-bottom:10px; }
-  .service-card-header { display:flex; align-items:center; gap:8px; margin-bottom:12px; }
-  .service-card-num { font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:0.15em; text-transform:uppercase; color:var(--accent); background:var(--accent-dim); border:1px solid var(--accent-rim); border-radius:3px; padding:0 7px; height:20px; display:flex; align-items:center; flex-shrink:0; }
-  .service-section-label { font-size:10px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
-  .service-footer { display:flex; justify-content:flex-end; align-items:center; margin-top:10px; padding-top:10px; border-top:1px solid var(--border); gap:16px; }
-  .service-total-label { font-size:12px; color:var(--muted); }
-  .service-total-val { font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:900; color:var(--text); }
-  .part-row { display:grid; grid-template-columns:1fr 60px 90px 80px 28px; gap:6px; margin-bottom:5px; align-items:center; }
-  .part-row-header { display:grid; grid-template-columns:1fr 60px 90px 80px 28px; gap:6px; margin-bottom:4px; }
-  .part-header-label { font-size:10px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); }
-  .remove-item-btn { width:28px; height:28px; display:flex; align-items:center; justify-content:center; border-radius:4px; border:1px solid rgba(239,68,68,0.25); background:transparent; color:var(--red); cursor:pointer; font-size:16px; line-height:1; flex-shrink:0; }
-  .remove-item-btn:hover { background:var(--red-dim); }
-
-  /* ── MODAL ── */
-  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.78); display:flex; align-items:center; justify-content:center; z-index:500; padding:20px; animation:fadeIn 0.18s ease; }
-  @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
-  .modal { background:var(--raised); border:1px solid var(--border); border-radius:7px; width:100%; max-width:520px; max-height:90vh; overflow-y:auto; }
-  @media (min-width:900px) { .modal { max-width:min(83vw,1100px); max-height:88vh; } }
-  .modal-head { padding:18px 22px 0; display:flex; align-items:flex-start; justify-content:space-between; position:sticky; top:0; background:var(--raised); z-index:1; padding-bottom:14px; border-bottom:1px solid var(--border); }
-  .modal-head h3 { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:900; text-transform:uppercase; letter-spacing:0.06em; color:var(--snow); }
-  .modal-head-sub { font-size:11px; color:var(--muted); margin-top:2px; }
-  .modal-close { background:none; border:none; color:var(--muted); font-size:20px; cursor:pointer; line-height:1; padding:0; }
-  .modal-close:hover { color:var(--text); }
-  .modal-body { padding:16px 22px 22px; }
-
-  /* ── PAGE HEADER ── */
-  .page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:8px; }
-  .page-title { font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:900; text-transform:uppercase; letter-spacing:0.04em; color:var(--snow); }
-  .page-sub { font-size:11px; color:var(--muted); margin-top:2px; }
-
-  /* ── CARD ── */
-  .card { background:var(--raised); border:1px solid var(--border); border-radius:5px; padding:18px 20px; margin-bottom:14px; }
-  .card-title { font-family:'Barlow Condensed',sans-serif; font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:0.1em; color:var(--snow); margin-bottom:14px; }
-
-  /* ── FORM GRID ── */
-  .form-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
-  .form-grid-3 { display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
-
-  /* ── INLINE INPUT ── */
-  .inline-input { background:var(--plate); border:1px solid var(--border); border-radius:4px; padding:0 10px; height:26px; font-size:12px; color:var(--text); outline:none; font-family:'Barlow',sans-serif; }
-  .inline-input:focus { border-color:var(--rim); }
-
-  /* ── EMPTY / LOADING ── */
-  .empty-state { text-align:center; padding:56px 24px; }
-  .empty-state h3 { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--body); margin-bottom:6px; }
-  .empty-state p { font-size:12px; color:var(--muted); }
-  .loading-row { text-align:center; padding:40px; font-size:12px; color:var(--muted); }
-
-  /* ── COMPANY CARDS ── */
-  .company-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
-  .company-card { background:var(--raised); border:1px solid var(--border); border-radius:5px; padding:16px; cursor:pointer; transition:border-color 0.15s; }
-  .company-card:hover { border-color:var(--rim); }
-  .company-card.selected { border-color:var(--accent); }
-  .company-name { font-family:'Barlow Condensed',sans-serif; font-size:16px; font-weight:900; text-transform:uppercase; letter-spacing:0.04em; color:var(--white); margin-bottom:4px; }
-  .company-meta { font-size:11px; color:var(--muted); line-height:1.6; }
-  .company-user-count { font-size:11px; color:var(--soft); font-weight:600; }
-  .company-expanded { border-top:1px solid var(--border); margin-top:12px; padding-top:12px; }
-  .expanded-label { font-size:9px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; color:var(--dim); margin-bottom:8px; }
-  .user-row { display:flex; justify-content:space-between; align-items:center; height:30px; border-bottom:1px solid rgba(28,45,66,0.5); }
-  .user-row:last-child { border-bottom:none; }
-
-  /* ── HAMBURGER ── */
-  .menu-btn {
-    display:flex; align-items:center; justify-content:center;
-    width:32px; height:32px; background:transparent;
-    border:1px solid var(--border); border-radius:4px;
-    color:var(--body); cursor:pointer; flex-shrink:0; margin-right:8px;
-  }
-  .menu-btn:hover { border-color:var(--rim); color:var(--text); }
-
-  /* ── SIDEBAR OVERLAY ── */
-  .sidebar-overlay {
-    display:none; position:fixed; inset:0;
-    background:rgba(0,0,0,0.65); z-index:199;
-  }
-
-  /* ── DESKTOP COLLAPSE ── */
-  @media (min-width:769px) {
-    .sidebar { overflow:hidden; transition:width 0.22s ease; }
-    .sidebar:not(.open) { width:0; border-right-width:0; }
-  }
-
-  @media (max-width:768px) {
-    .sidebar {
-      position:fixed; left:0; top:0; bottom:0; z-index:200;
-      transform:translateX(-100%); transition:transform 0.25s ease;
-    }
-    .sidebar.open { transform:translateX(0); box-shadow:8px 0 32px rgba(0,0,0,0.6); }
-    .sidebar-overlay { display:block; }
-    body { overflow:auto; }
-    .main-content { padding:14px; }
-    .company-grid { grid-template-columns:1fr; }
-    .form-grid { grid-template-columns:1fr; }
-    .form-grid-3 { grid-template-columns:1fr; }
-  }
-
-  @media (max-width:900px) {
-    .stats-5 { grid-template-columns:repeat(3,1fr); }
-    .company-grid { grid-template-columns:1fr; }
-    .main-content { padding:14px; }
-  }
-
-  hr.divider { border:none; border-top:1px solid var(--border); margin:14px 0; }
 `;
 
 // ─── BILLING CONSTANTS ────────────────────────────────────────
@@ -307,12 +30,6 @@ const INVOICE_STATUS_LABELS = {
 };
 const HARD_FLOOR  = 185;
 const DEFAULT_RATE = 220;
-const SERVICE_TYPES = [
-  "Oil Change", "Tire Rotation", "Brake Service", "Engine Repair",
-  "Transmission Service", "AC/Heat Repair", "Electrical Diagnosis",
-  "Suspension / Steering", "Alignment", "Exhaust", "Fluid Service",
-  "Preventive Maintenance", "DOT Inspection", "Other",
-];
 const STATUS_OPTIONS = ["pending", "in_progress", "completed", "cancelled"];
 const STATUS_LABELS  = { pending:"Pending", in_progress:"In Progress", completed:"Completed", cancelled:"Cancelled" };
 
@@ -323,8 +40,9 @@ function InvoiceStatusBadge({ status, label }) {
     submitted:     { bg:"rgba(245,158,11,0.12)",  color:"#fbbf24", label:"Submitted"     },
     approved:      { bg:"rgba(16,185,129,0.12)",  color:"#34d399", label:"Approved"      },
     rejected:      { bg:"rgba(239,68,68,0.12)",   color:"#f87171", label:"Rejected"      },
-    client_billed: { bg:"rgba(59,130,246,0.12)",  color:"#60a5fa", label:"Client Billed" },
-    paid:          { bg:"rgba(16,185,129,0.22)",  color:"#6ee7b7", label:"Paid"          },
+    revise:        { bg:"rgba(249,115,22,0.12)", color:"#fb923c", label:"Revise"        },
+    client_billed:            { bg:"rgba(59,130,246,0.12)",  color:"#60a5fa", label:"Client Billed"    },
+    paid:                     { bg:"rgba(16,185,129,0.22)",  color:"#6ee7b7", label:"Paid"             },
   };
   const s = map[status];
   if (!s) return (
@@ -411,7 +129,7 @@ function PriceIntelPanel({ serviceType, vehicleType, target, onSuggestTotal }) {
   if (!serviceType || !vehicleType || !target) return (
     <div style={panelBase}>
       <div style={{ fontSize:9, fontWeight:700, letterSpacing:"0.2em", textTransform:"uppercase", color:"var(--dim)", marginBottom:4 }}>Price Intelligence</div>
-      <div style={{ fontSize:12, color:"var(--muted)" }}>Select service type, vehicle, and target to see price intelligence.</div>
+      <div style={{ fontSize:12, color:"var(--muted)" }}>Enter a service name, vehicle, and bill-to contact to see price intelligence.</div>
     </div>
   );
 
@@ -468,7 +186,7 @@ function InvoiceBuilder({ onSaved, onCancel }) {
   const [linkedReqId, setLinkedReqId] = useState("");
   const [form, setForm] = useState({
     company_id:"", vehicle_id:"", vin:"", vehicle_make:"", vehicle_model:"", vehicle_year:"",
-    service_type:"", bill_to_id:"",
+    bill_to_id:"",
     taxType:"flat", taxValue:"0",
     discountType:"none", discountValue:"0",
   });
@@ -477,13 +195,14 @@ function InvoiceBuilder({ onSaved, onCancel }) {
     parts:[{ description:"", quantity:"1", rate:"" }],
   }]);
   const [billToContacts, setBillToContacts] = useState([]);
-  const [saving, setSaving]       = useState(false);
-  const [error, setError]         = useState("");
-  const [aiLoading, setAiLoading] = useState(false);
-  const [aiNote, setAiNote]       = useState("");
+  const [saving, setSaving]               = useState(false);
+  const [error, setError]                 = useState("");
+  const [aiLoading, setAiLoading]         = useState(false);
+  const [aiNote, setAiNote]               = useState("");
+  const [confirmSubmit, setConfirmSubmit] = useState(false);
 
   useEffect(() => {
-    supabase.from("service_requests").select("id,request_number,vehicle_id,vin,vehicle_make,vehicle_model,vehicle_year,service_type,company_id").order("request_number",{ascending:false}).then(({data}) => setRequests(data||[]));
+    supabase.from("service_requests").select("id,request_number,vehicle_id,vin,vehicle_make,vehicle_model,vehicle_year,service_type,company_id").is("archived_at", null).order("request_number",{ascending:false}).then(({data}) => setRequests(data||[]));
     supabase.from("companies").select("id,name").order("name").then(({data}) => setCompanies(data||[]));
     supabase.from("bill_to_contacts").select("*").order("name").then(({data}) => setBillToContacts(data||[]));
   }, []);
@@ -502,7 +221,6 @@ function InvoiceBuilder({ onSaved, onCancel }) {
       vehicle_make:  r.vehicle_make  || "",
       vehicle_model: r.vehicle_model || "",
       vehicle_year:  r.vehicle_year  || "",
-      service_type:  r.service_type  || "",
     }));
   };
 
@@ -533,14 +251,15 @@ function InvoiceBuilder({ onSaved, onCancel }) {
   const updatePart    = (si, pi, k, v) => setServices(p => p.map((s,i) => i===si ? {...s, parts:s.parts.map((pt,j) => j===pi ? {...pt,[k]:v} : pt)} : s));
 
   const handleAiEstimate = async () => {
-    if (!form.service_type) { setAiNote("Select a service type first."); return; }
+    const derivedServiceType = services[0]?.name || "";
+    if (!derivedServiceType) { setAiNote("Enter a service name first."); return; }
     setAiLoading(true); setAiNote("");
     const { data: { session } } = await supabase.auth.getSession();
     try {
       const res = await fetch(`${SUPABASE_URL}/functions/v1/get-ai-estimate`, {
         method:"POST",
         headers:{ "Content-Type":"application/json", "Authorization":`Bearer ${session.access_token}` },
-        body: JSON.stringify({ vehicle_year:form.vehicle_year, vehicle_make:form.vehicle_make, vehicle_model:form.vehicle_model, service_type:form.service_type }),
+        body: JSON.stringify({ vehicle_year:form.vehicle_year, vehicle_make:form.vehicle_make, vehicle_model:form.vehicle_model, service_type:derivedServiceType }),
       });
       const data = await res.json();
       if (data.error) throw new Error(data.error);
@@ -558,10 +277,10 @@ function InvoiceBuilder({ onSaved, onCancel }) {
   };
 
   const handleSave = async (submitNow) => {
-    if (!form.service_type) { setError("Service type is required."); return; }
     setSaving(true); setError("");
     const { data: { session } } = await supabase.auth.getSession();
     const selectedBillTo = billToContacts.find(c => c.id === form.bill_to_id) || null;
+    const derivedSvcType = services[0]?.name || null;
     const { error: err } = await supabase.from("invoices").insert({
       service_request_id: linkedReqId || null,
       company_id:         form.company_id || null,
@@ -570,7 +289,7 @@ function InvoiceBuilder({ onSaved, onCancel }) {
       vehicle_make:       form.vehicle_make,
       vehicle_model:      form.vehicle_model,
       vehicle_year:       form.vehicle_year,
-      service_type:       form.service_type,
+      service_type:       derivedSvcType,
       bill_to_id:         form.bill_to_id || null,
       submission_target:  selectedBillTo ? selectedBillTo.name : null,
       labor_hours:        0,
@@ -609,7 +328,7 @@ function InvoiceBuilder({ onSaved, onCancel }) {
             <option value="">— None —</option>
             {requests.map(r => (
               <option key={r.id} value={r.id}>
-                SR-{r.request_number} · {r.vehicle_id} · {r.service_type}{companyName(r.company_id) ? ` — ${companyName(r.company_id)}` : ""}
+                {r.request_number} · {r.vehicle_id}{companyName(r.company_id) ? ` — ${companyName(r.company_id)}` : ""}
               </option>
             ))}
           </select>
@@ -646,13 +365,6 @@ function InvoiceBuilder({ onSaved, onCancel }) {
             <label>Model</label>
             <input value={form.vehicle_model} onChange={e => f("vehicle_model",e.target.value)} placeholder="F-150" />
           </div>
-          <div className="field">
-            <label>Service Type</label>
-            <select value={form.service_type} onChange={e => f("service_type",e.target.value)}>
-              <option value="">— Select —</option>
-              {SERVICE_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
         </div>
         {(() => {
           const sel = billToContacts.find(c => c.id === form.bill_to_id) || null;
@@ -677,7 +389,7 @@ function InvoiceBuilder({ onSaved, onCancel }) {
       </div>
 
       <PriceIntelPanel
-        serviceType={form.service_type}
+        serviceType={services[0]?.name || ""}
         vehicleType={vehicleType}
         target={(billToContacts.find(c => c.id === form.bill_to_id) || null)?.name || ""}
         onSuggestTotal={(suggestedTotal) => {
@@ -819,11 +531,24 @@ function InvoiceBuilder({ onSaved, onCancel }) {
         </div>
       </div>
 
+      {confirmSubmit && (
+        <div style={{ background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.3)", borderRadius:6, padding:"10px 14px", marginBottom:10 }}>
+          <div style={{ fontSize:13, color:"var(--snow)", marginBottom:8 }}>
+            <strong style={{ color:"var(--accent)" }}>Submit this invoice for review?</strong>{" "}
+            Once submitted it will be visible to the approval workflow.
+          </div>
+          <div style={{ display:"flex", gap:8 }}>
+            <button className="btn btn-ghost btn-sm" onClick={() => setConfirmSubmit(false)}>Cancel</button>
+            <button className="btn btn-primary btn-sm" onClick={() => handleSave(true)} disabled={saving}>{saving?"Submitting…":"Confirm Submit"}</button>
+          </div>
+        </div>
+      )}
+
       <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
         <button className="btn btn-ghost" onClick={onCancel}>Cancel</button>
         <button className="btn btn-ghost" onClick={() => handleSave(false)} disabled={saving}>{saving?"Saving…":"Save Draft"}</button>
-        <button className="btn btn-primary" onClick={() => handleSave(true)} disabled={saving||!form.service_type}>
-          {saving?"Submitting…":"Submit Invoice"}
+        <button className="btn btn-primary" onClick={() => setConfirmSubmit(true)} disabled={saving||confirmSubmit}>
+          Submit Invoice
         </button>
       </div>
     </div>
@@ -840,7 +565,6 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, bill
     vehicle_make: invoice.vehicle_make || "",
     vehicle_model:invoice.vehicle_model|| "",
     vehicle_year: invoice.vehicle_year || "",
-    service_type: invoice.service_type || "",
     bill_to_id:   invoice.bill_to_id   || "",
     taxType:      savedSettings?.taxType      || "flat",
     taxValue:     savedSettings?.taxValue     || String(invoice.tax || "0"),
@@ -886,11 +610,26 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, bill
     }
     return [{ name: invoice.service_type || "", labor_hours: String(lh || ""), labor_rate: String(lr), parts }];
   });
-  const [status,    setStatus]    = useState(invoice.status);
-  const [rejReason, setRejReason] = useState(invoice.rejection_reason || "");
-  const [saving,    setSaving]    = useState(false);
-  const [saved,     setSaved]     = useState(false);
-  const [error,     setError]     = useState("");
+  const [status,           setStatus]           = useState(invoice.status);
+  const [rejReason,        setRejReason]        = useState(invoice.rejection_reason || "");
+  const [saving,           setSaving]           = useState(false);
+  const [saved,            setSaved]            = useState(false);
+  const [error,            setError]            = useState("");
+  const [pendingNoteFiles, setPendingNoteFiles] = useState(0);
+  const [showUnsentWarning, setShowUnsentWarning] = useState(false);
+  const noteRef = useRef(null);
+
+  const guardedClose = () => {
+    if (pendingNoteFiles > 0) { setShowUnsentWarning(true); return; }
+    onClose();
+  };
+
+  const handleSendAndClose = async () => {
+    await noteRef.current?.submit();
+    onClose();
+  };
+  const [confirmSubmit,    setConfirmSubmit]    = useState(false);
+  const [confirmUnsubmit,  setConfirmUnsubmit]  = useState(false);
 
   const f = (k, v) => setForm(p => ({ ...p, [k]: v }));
   const addService    = () => setServices(p => [...p, { name:"", labor_hours:"", labor_rate:String(DEFAULT_RATE), parts:[] }]);
@@ -917,7 +656,24 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, bill
                       : parseFloat(form.taxValue) || 0;
   const total         = afterDiscount + taxAmt;
 
+  const handleUnsubmit = async () => {
+    setSaving(true); setError("");
+    const { error: err } = await supabase.from("invoices").update({ status: "draft", updated_by_name: amDisplayName || amEmail || "Account Manager" }).eq("id", invoice.id);
+    setSaving(false);
+    if (err) { setError(err.message); return; }
+    setStatus("draft");
+    setConfirmUnsubmit(false);
+    setSaved(true);
+    setTimeout(() => { setSaved(false); onUpdate(); }, 1200);
+  };
+
+
   const handleSave = async () => {
+    // Intercept: require confirmation when transitioning to "submitted"
+    if (status === "submitted" && invoice.status !== "submitted") {
+      setConfirmSubmit(true);
+      return;
+    }
     setSaving(true); setError("");
     const selectedBillTo = (billToContacts||[]).find(c => c.id === form.bill_to_id) || null;
     const updates = {
@@ -927,7 +683,7 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, bill
       vehicle_make:      form.vehicle_make,
       vehicle_model:     form.vehicle_model,
       vehicle_year:      form.vehicle_year,
-      service_type:      form.service_type,
+      service_type:      services[0]?.name || null,
       bill_to_id:        form.bill_to_id || null,
       submission_target: selectedBillTo ? selectedBillTo.name : (invoice.submission_target || null),
       labor_hours:       0,
@@ -937,6 +693,7 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, bill
       tax:               taxAmt,
       line_items:        { services, settings: { taxType: form.taxType, taxValue: form.taxValue, discountType: form.discountType, discountValue: form.discountValue } },
       status,
+      updated_by_name: amDisplayName || amEmail || "Account Manager",
     };
     if (status === "rejected") updates.rejection_reason = rejReason;
     const { error: err } = await supabase.from("invoices").update(updates).eq("id", invoice.id);
@@ -946,17 +703,17 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, bill
     if (wasUnresolved && isResolved) {
       const vehicleType = [form.vehicle_make, form.vehicle_model].filter(Boolean).join(" ") || form.vehicle_id || "Unknown";
       await supabase.from("pricing_history").insert({
-        invoice_id: invoice.id, service_type: form.service_type,
+        invoice_id: invoice.id, service_type: services[0]?.name || "Unknown",
         vehicle_type: vehicleType, submission_target: updates.submission_target || "Unknown",
         submitted_amount: total, outcome: status,
       });
     }
-    setSaving(false); setSaved(true);
+    setSaving(false); setSaved(true); setConfirmSubmit(false);
     setTimeout(() => { setSaved(false); onUpdate(); }, 1200);
   };
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && guardedClose()}>
       <div className="modal">
         <div className="modal-head">
           <div>
@@ -965,13 +722,17 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, bill
               <span>{companies.find(c => c.id === form.company_id)?.name || "—"} · Created {new Date(invoice.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}</span>
               {invoice.service_request_id && requestsMap?.[invoice.service_request_id] && (
                 <span style={{ display:"inline-flex", alignItems:"center", gap:6 }}>
-                  <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13, color:"var(--accent)", letterSpacing:"0.05em" }}>Invoice #SR-{requestsMap[invoice.service_request_id]}</span>
-                  <SRStatusBadge status={requestsStatusMap?.[invoice.service_request_id]} />
+                  <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13, color:"var(--accent)", letterSpacing:"0.05em" }}>Invoice #{requestsMap[invoice.service_request_id]}</span>
+                  {invoice.service_lines != null ? (
+                    invoice.service_lines.is_completed
+                      ? <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"0 6px", height:16, borderRadius:3, fontFamily:"'Barlow Condensed',sans-serif", fontSize:9, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", background:"rgba(16,185,129,0.12)", color:"#34d399" }}>Complete</span>
+                      : <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"0 6px", height:16, borderRadius:3, fontFamily:"'Barlow Condensed',sans-serif", fontSize:9, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", background:"rgba(245,158,11,0.12)", color:"#fbbf24" }}>In Progress</span>
+                  ) : null}
                 </span>
               )}
             </div>
           </div>
-          <button className="modal-close" onClick={onClose}>×</button>
+          <button className="modal-close" onClick={guardedClose}>×</button>
         </div>
         <div className="modal-body">
           {error && <div className="error-box">{error}</div>}
@@ -1004,13 +765,6 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, bill
             <div className="field" style={{ marginBottom:0 }}>
               <label>Model</label>
               <input value={form.vehicle_model} onChange={e => f("vehicle_model",e.target.value)} />
-            </div>
-            <div className="field" style={{ marginBottom:0 }}>
-              <label>Service Type</label>
-              <select value={form.service_type} onChange={e => f("service_type",e.target.value)}>
-                <option value="">— Select —</option>
-                {SERVICE_TYPES.map(s => <option key={s} value={s}>{s}</option>)}
-              </select>
             </div>
           </div>
           {(() => {
@@ -1167,13 +921,60 @@ function InvoiceModal({ invoice, companies, requestsStatusMap, requestsMap, bill
               <input value={rejReason} onChange={e => setRejReason(e.target.value)} placeholder="Why was this invoice rejected?" />
             </div>
           )}
-          <NotesLog srId={invoice.service_request_id || null} currentUserName={amDisplayName || amEmail} isAdmin={false} />
+
+
+          <NotesLog ref={noteRef} srId={invoice.service_request_id || null} currentUserName={amDisplayName || amEmail} isAdmin={false} canSetClientVisible={true} onPendingFilesChange={setPendingNoteFiles} />
+
+          {showUnsentWarning && (
+            <div style={{ background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.3)", borderRadius:6, padding:"10px 14px", marginTop:10, fontSize:13, color:"var(--body)" }}>
+              <strong style={{ color:"var(--accent)" }}>You have {pendingNoteFiles} unsent photo(s).</strong> Send them before closing?
+              <div style={{ display:"flex", gap:8, marginTop:8 }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => setShowUnsentWarning(false)}>Go Back</button>
+                <button className="btn btn-primary btn-sm" onClick={handleSendAndClose}>Send and Close</button>
+              </div>
+            </div>
+          )}
 
           {saved && <div className="success-box">Saved.</div>}
 
-          <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
-            <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
-            <button className="btn btn-primary" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : "Save Changes"}</button>
+          {/* Submit confirmation */}
+          {confirmSubmit && (
+            <div style={{ background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.3)", borderRadius:6, padding:"10px 14px", marginBottom:10 }}>
+              <div style={{ fontSize:13, color:"var(--snow)", marginBottom:8 }}>
+                <strong style={{ color:"var(--accent)" }}>Submit this invoice for review?</strong>{" "}
+                Once submitted it will be visible to the approval workflow.
+              </div>
+              <div style={{ display:"flex", gap:8 }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => setConfirmSubmit(false)}>Cancel</button>
+                <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>{saving?"Submitting…":"Confirm Submit"}</button>
+              </div>
+            </div>
+          )}
+
+          {/* Un-submit confirmation */}
+          {confirmUnsubmit && (
+            <div style={{ background:"rgba(55,79,104,0.25)", border:"1px solid var(--border)", borderRadius:6, padding:"10px 14px", marginBottom:10 }}>
+              <div style={{ fontSize:13, color:"var(--snow)", marginBottom:8 }}>
+                <strong style={{ color:"var(--text)" }}>Un-submit this invoice?</strong>{" "}
+                It will return to Draft status and can be edited.
+              </div>
+              <div style={{ display:"flex", gap:8 }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => setConfirmUnsubmit(false)}>Cancel</button>
+                <button className="btn btn-ghost btn-sm" onClick={handleUnsubmit} disabled={saving}>{saving?"Saving…":"Confirm Un-submit"}</button>
+              </div>
+            </div>
+          )}
+
+          <div style={{ display:"flex", gap:8, justifyContent:"space-between", alignItems:"center" }}>
+            <div>
+              {invoice.status === "submitted" && !confirmUnsubmit && (
+                <button className="btn btn-ghost btn-sm" onClick={() => setConfirmUnsubmit(true)}>Un-submit</button>
+              )}
+            </div>
+            <div style={{ display:"flex", gap:8 }}>
+              <button className="btn btn-ghost" onClick={guardedClose}>Cancel</button>
+              <button className="btn btn-primary" onClick={handleSave} disabled={saving||confirmSubmit||confirmUnsubmit}>{saving ? "Saving…" : "Save Changes"}</button>
+            </div>
           </div>
         </div>
       </div>
@@ -1197,9 +998,9 @@ function Billing({ amDisplayName, amEmail }) {
   const load = async () => {
     setLoading(true);
     const [{ data: invs }, { data: cos }, { data: reqs }, { data: btc }] = await Promise.all([
-      supabase.from("invoices").select("*").order("created_at",{ascending:false}),
+      supabase.from("invoices").select("*, service_lines!service_line_id(line_letter, is_completed)").eq("is_incognito", false).is("archived_at", null).order("created_at",{ascending:false}),
       supabase.from("companies").select("id,name").order("name"),
-      supabase.from("service_requests").select("id,request_number,status"),
+      supabase.from("service_requests").select("id,request_number,status").is("archived_at", null),
       supabase.from("bill_to_contacts").select("*").order("name"),
     ]);
     setInvoices(invs || []);
@@ -1324,12 +1125,15 @@ function Billing({ amDisplayName, amEmail }) {
                   <td style={{ color:"var(--soft)", whiteSpace:"nowrap", fontSize:11 }}>
                     {new Date(inv.created_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"})}
                   </td>
-                  <td style={{ color:"var(--soft)", whiteSpace:"nowrap", fontSize:11 }}>
-                    {inv.updated_at ? new Date(inv.updated_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) + " " + new Date(inv.updated_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"}) : "—"}
+                  <td style={{ color:"var(--soft)", fontSize:11 }}>
+                    {inv.updated_at ? <>
+                      <div style={{ whiteSpace:"nowrap" }}>{new Date(inv.updated_at).toLocaleDateString("en-US",{month:"short",day:"numeric",year:"numeric"}) + " " + new Date(inv.updated_at).toLocaleTimeString("en-US",{hour:"numeric",minute:"2-digit"})}</div>
+                      {inv.updated_by_name && <div style={{ fontSize:10, color:"var(--dim)", marginTop:1 }}>{inv.updated_by_name}</div>}
+                    </> : "—"}
                   </td>
                   <td>
                     {inv.service_request_id && requestsMap[inv.service_request_id]
-                      ? <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13, color:"var(--accent)", letterSpacing:"0.05em" }}>SR-{requestsMap[inv.service_request_id]}</span>
+                      ? <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13, color:"var(--accent)", letterSpacing:"0.05em" }}>{requestsMap[inv.service_request_id]}</span>
                       : <span style={{ color:"var(--muted)" }}>—</span>}
                   </td>
                   <td style={{ fontWeight:600, fontSize:13 }}>{companiesMap[inv.company_id] || "—"}</td>
@@ -1361,7 +1165,11 @@ function Billing({ amDisplayName, amEmail }) {
                       ${Number(inv.total||0).toFixed(2)}
                     </span>
                   </td>
-                  <td>{inv.service_request_id ? <SRStatusBadge status={requestsStatusMap[inv.service_request_id]} /> : <span style={{ color:"var(--muted)", fontSize:12 }}>—</span>}</td>
+                  <td>{inv.service_lines != null ? (
+                    inv.service_lines.is_completed
+                      ? <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"0 7px", height:18, borderRadius:3, fontFamily:"'Barlow Condensed',sans-serif", fontSize:10, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", background:"rgba(16,185,129,0.12)", color:"#34d399", border:"1px solid rgba(16,185,129,0.3)" }}><span style={{ width:5, height:5, borderRadius:"50%", background:"#34d399", flexShrink:0 }} />Complete</span>
+                      : <span style={{ display:"inline-flex", alignItems:"center", gap:4, padding:"0 7px", height:18, borderRadius:3, fontFamily:"'Barlow Condensed',sans-serif", fontSize:10, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase", background:"rgba(245,158,11,0.12)", color:"#fbbf24", border:"1px solid rgba(245,158,11,0.3)" }}><span style={{ width:5, height:5, borderRadius:"50%", background:"#fbbf24", flexShrink:0 }} />In Progress</span>
+                  ) : <span style={{ color:"var(--muted)", fontSize:12 }}>—</span>}</td>
                   <td><InvoiceStatusBadge status={inv.status} /></td>
                   <td>
                     <button className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); setSelected(inv); }}>
@@ -1410,6 +1218,7 @@ function AMCompanies() {
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState("");
   const [success, setSuccess] = useState("");
+  const [confirmRemoveUserId, setConfirmRemoveUserId] = useState(null);
 
   const load = async () => {
     setLoading(true);
@@ -1457,8 +1266,8 @@ function AMCompanies() {
   };
 
   const handleRemoveUser = async (userId, companyId) => {
-    if (!window.confirm("Remove this user from the company? This will revoke their client portal access.")) return;
-    setError(""); setSuccess("");
+    if (confirmRemoveUserId !== userId) { setConfirmRemoveUserId(userId); return; }
+    setConfirmRemoveUserId(null); setError(""); setSuccess("");
     const { error: err } = await supabase.from("company_users").delete().eq("user_id", userId).eq("company_id", companyId);
     if (err) { setError(err.message); return; }
     setSuccess("User removed.");
@@ -1608,9 +1417,17 @@ function AMCompanies() {
                                 ? <><strong style={{ color:"var(--text)" }}>{u.display_name}</strong> <span className="mono" style={{ fontSize:10 }}>{u.user_id.slice(0,8)}…</span></>
                                 : <span className="mono">{u.user_id}</span>}
                             </span>
-                            <div style={{ display:"flex", gap:4 }}>
+                            <div style={{ display:"flex", gap:4, alignItems:"center" }}>
+                              <button
+                                className="btn btn-ghost btn-sm"
+                                style={{ fontSize:9, padding:"1px 7px", color: u.is_billing_user ? "#60a5fa" : "var(--muted)", borderColor: u.is_billing_user ? "rgba(59,130,246,0.35)" : undefined }}
+                                onClick={async (e) => { e.stopPropagation(); await supabase.from("company_users").update({ is_billing_user: !u.is_billing_user }).eq("id", u.id); load(); }}
+                              >{u.is_billing_user ? "Billing ✓" : "Billing"}</button>
                               <button className="btn btn-ghost btn-sm" onClick={() => openEditUser(u)}>Edit</button>
-                              <button className="btn btn-danger btn-sm" onClick={() => handleRemoveUser(u.user_id, c.id)}>Remove</button>
+                              {confirmRemoveUserId === u.user_id
+                                ? <><button className="btn btn-ghost btn-sm" onClick={() => setConfirmRemoveUserId(null)}>Cancel</button><button className="btn btn-sm" style={{ background:"#ef4444", color:"#fff" }} onClick={() => handleRemoveUser(u.user_id, c.id)}>Confirm</button></>
+                                : <button className="btn btn-danger btn-sm" onClick={() => handleRemoveUser(u.user_id, c.id)}>Remove</button>
+                              }
                             </div>
                           </div>
                         )}
@@ -1644,13 +1461,13 @@ function AMCompanies() {
 
 // ─── VEHICLE REGISTRY (ACCOUNT MANAGER) ───────────────────────
 function AMVehicleStatusBadge({ status }) {
-  const s = status || "Active";
+  const s = status || "Road Worthy";
   const map = {
-    "Active":          { bg:"var(--green-dim)", color:"var(--green)", border:"rgba(16,185,129,0.22)" },
+    "Road Worthy":          { bg:"var(--green-dim)", color:"var(--green)", border:"rgba(16,185,129,0.22)" },
     "Retired":         { bg:"var(--raised)",    color:"var(--dim)",   border:"var(--border)"          },
     "Not Road Worthy": { bg:"var(--amber-dim)", color:"var(--amber)", border:"rgba(245,158,11,0.22)"  },
   };
-  const st = map[s] || map["Active"];
+  const st = map[s] || map["Road Worthy"];
   return (
     <span style={{ display:"inline-block", padding:"2px 8px", borderRadius:4, fontSize:10, fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", background:st.bg, color:st.color, border:`1px solid ${st.border}` }}>
       {s}
@@ -1662,7 +1479,7 @@ function AMVehicleRegistry({ amDisplayName }) {
   const [vehicles, setVehicles]   = useState([]);
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading]     = useState(true);
-  const [statusFilter, setStatusFilter]   = useState("Active");
+  const [statusFilter, setStatusFilter]   = useState("Road Worthy");
   const [companyFilter, setCompanyFilter] = useState("");
   const [search, setSearch]               = useState("");
   const [selected, setSelected]   = useState(null);
@@ -1670,19 +1487,22 @@ function AMVehicleRegistry({ amDisplayName }) {
   const [srLoading, setSrLoading] = useState(false);
   const [showForm, setShowForm]   = useState(false);
   const [editVehicle, setEditVehicle] = useState(null);
-  const [form, setForm] = useState({ company_id:"", vehicle_id:"", vin:"", vehicle_make:"", vehicle_model:"", vehicle_year:"", license_plate:"", notes:"", status:"Active" });
+  const [form, setForm] = useState({ company_id:"", vehicle_id:"", vin:"", vehicle_make:"", vehicle_model:"", vehicle_year:"", license_plate:"", notes:"", status:"Road Worthy", group_id:"" });
   const [saving, setSaving] = useState(false);
   const [error, setError]   = useState("");
   const [success, setSuccess] = useState("");
+  const [groups, setGroups] = useState([]);
 
   const load = async () => {
     setLoading(true);
     // RLS scopes both queries to AM's assigned companies automatically
-    const [{ data: vehs }, { data: cos }] = await Promise.all([
+    const [{ data: vehs }, { data: cos }, { data: grps }] = await Promise.all([
       supabase.from("vehicles").select("*").order("vehicle_id"),
       supabase.from("companies").select("id, name").order("name"),
+      supabase.from("vehicle_groups").select("*").order("sort_order").order("name"),
     ]);
     setVehicles(vehs || []);
+    setGroups(grps || []);
     setCompanies(cos || []);
     setLoading(false);
   };
@@ -1708,7 +1528,7 @@ function AMVehicleRegistry({ amDisplayName }) {
     });
 
   const counts = {
-    Active:        vehicles.filter(v => v.status === "Active").length,
+    roadWorthy:    vehicles.filter(v => v.status === "Road Worthy").length,
     Retired:       vehicles.filter(v => v.status === "Retired").length,
     notRoadWorthy: vehicles.filter(v => v.status === "Not Road Worthy").length,
     total:         vehicles.length,
@@ -1719,7 +1539,7 @@ function AMVehicleRegistry({ amDisplayName }) {
 
   const openAdd = () => {
     setEditVehicle(null);
-    setForm({ company_id:"", vehicle_id:"", vin:"", vehicle_make:"", vehicle_model:"", vehicle_year:"", license_plate:"", notes:"", status:"Active" });
+    setForm({ company_id:"", vehicle_id:"", vin:"", vehicle_make:"", vehicle_model:"", vehicle_year:"", license_plate:"", notes:"", status:"Road Worthy", group_id:"" });
     setError("");
     setShowForm(true);
   };
@@ -1727,7 +1547,7 @@ function AMVehicleRegistry({ amDisplayName }) {
   const openEdit = (v, e) => {
     if (e) e.stopPropagation();
     setEditVehicle(v);
-    setForm({ company_id: v.company_id, vehicle_id: v.vehicle_id, vin: v.vin || "", vehicle_make: v.vehicle_make || "", vehicle_model: v.vehicle_model || "", vehicle_year: v.vehicle_year || "", license_plate: v.license_plate || "", notes: v.notes || "", status: v.status || "Active" });
+    setForm({ company_id: v.company_id, vehicle_id: v.vehicle_id, vin: v.vin || "", vehicle_make: v.vehicle_make || "", vehicle_model: v.vehicle_model || "", vehicle_year: v.vehicle_year || "", license_plate: v.license_plate || "", notes: v.notes || "", status: v.status || "Road Worthy", group_id: v.group_id || "" });
     setError("");
     setShowForm(true);
   };
@@ -1737,7 +1557,7 @@ function AMVehicleRegistry({ amDisplayName }) {
     setSrHistory([]);
     setSrLoading(true);
     const { data } = await supabase.from("service_requests")
-      .select("id, request_number, service_type, status, created_at, mileage")
+      .select("id, request_number, status, created_at, updated_at, mileage, urgency, updated_by_name, estimated_completion, service_lines(line_letter, service_name, is_completed)")
       .eq("vehicle_registry_id", v.id)
       .order("created_at", { ascending: false });
     setSrHistory(data || []);
@@ -1747,6 +1567,19 @@ function AMVehicleRegistry({ amDisplayName }) {
   const handleSave = async () => {
     if (!form.company_id || !form.vehicle_id.trim()) { setError("Company and Vehicle ID are required."); return; }
     setSaving(true); setError("");
+
+    // VIN duplicate check
+    if (form.vin.trim()) {
+      const { data: vinMatch } = await supabase.from("vehicles").select("id, vehicle_id, companies(name)")
+        .eq("vin", form.vin.trim()).limit(1).maybeSingle();
+      if (vinMatch && vinMatch.id !== editVehicle?.id) {
+        const owner = vinMatch.companies?.name || "another company";
+        setError(`A vehicle with this VIN already exists: ${vinMatch.vehicle_id} (${owner}).`);
+        setSaving(false);
+        return;
+      }
+    }
+
     if (editVehicle) {
       const { error: err } = await supabase.from("vehicles").update({
         vehicle_id:    form.vehicle_id.trim(),
@@ -1757,6 +1590,7 @@ function AMVehicleRegistry({ amDisplayName }) {
         license_plate: form.license_plate.trim() || null,
         notes:         form.notes.trim() || null,
         status:        form.status,
+        group_id:      form.group_id || null,
       }).eq("id", editVehicle.id);
       setSaving(false);
       if (err) { setError(err.code === "23505" ? "A vehicle with this ID already exists for this company." : err.message); return; }
@@ -1782,6 +1616,7 @@ function AMVehicleRegistry({ amDisplayName }) {
         license_plate: form.license_plate.trim() || null,
         notes:         form.notes.trim() || null,
         status:        form.status,
+        group_id:      form.group_id || null,
       });
       setSaving(false);
       if (err) { setError(err.code === "23505" ? "A vehicle with this ID already exists for this company." : err.message); return; }
@@ -1795,7 +1630,6 @@ function AMVehicleRegistry({ amDisplayName }) {
   const handleStatusChange = async (v, newStatus, e) => {
     e.stopPropagation();
     if (newStatus === v.status) return;
-    if (!window.confirm(`Change "${v.vehicle_id}" status to ${newStatus}?`)) { load(); return; }
     const { error: err } = await supabase.from("vehicles").update({ status: newStatus }).eq("id", v.id);
     if (err) { setError(err.message); return; }
     const { data: { session } } = await supabase.auth.getSession();
@@ -1828,9 +1662,9 @@ function AMVehicleRegistry({ amDisplayName }) {
 
       <div className="toolbar" style={{ display:"flex", alignItems:"center", justifyContent:"space-between", gap:12, flexWrap:"wrap" }}>
         <div className="filters">
-          {[["Active","Active"],["Retired","Retired"],["Not Road Worthy","Not Road Worthy"],["all","All"]].map(([id, label]) => (
+          {[["Road Worthy","Road Worthy"],["Retired","Retired"],["Not Road Worthy","Not Road Worthy"],["all","All"]].map(([id, label]) => (
             <button key={id} className={`filter-btn ${statusFilter===id?"active":""}`} onClick={() => setStatusFilter(id)}>
-              {label} ({id === "Active" ? counts.Active : id === "Retired" ? counts.Retired : id === "Not Road Worthy" ? counts.notRoadWorthy : counts.total})
+              {label} ({id === "Road Worthy" ? counts.roadWorthy : id === "Retired" ? counts.Retired : id === "Not Road Worthy" ? counts.notRoadWorthy : counts.total})
             </button>
           ))}
           {companyFilter && (
@@ -1887,7 +1721,7 @@ function AMVehicleRegistry({ amDisplayName }) {
                         onChange={e => handleStatusChange(v, e.target.value, e)}
                         style={{ fontSize:11, padding:"3px 6px", borderRadius:5, border:"1px solid var(--border)", background:"var(--raised)", color:"var(--soft)", cursor:"pointer" }}
                       >
-                        <option value="Active">Active</option>
+                        <option value="Road Worthy">Active</option>
                         <option value="Retired">Retired</option>
                         <option value="Not Road Worthy">Not Road Worthy</option>
                       </select>
@@ -1930,17 +1764,22 @@ function AMVehicleRegistry({ amDisplayName }) {
               ) : (
                 <div className="table-wrap">
                   <table>
-                    <thead><tr><th>SR #</th><th>Service</th><th>Status</th><th>Mileage</th><th>Date</th></tr></thead>
+                    <thead><tr><th>SR #</th><th>Date</th><th>Services</th><th>Status</th><th>Mechanic</th><th>Mileage</th><th>Est. Completion</th></tr></thead>
                     <tbody>
-                      {srHistory.map(r => (
-                        <tr key={r.id} style={{ cursor:"default" }}>
-                          <td><span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13, color:"var(--accent)" }}>SR-{r.request_number}</span></td>
-                          <td style={{ fontSize:12 }}>{r.service_type || "—"}</td>
-                          <td><span style={{ fontSize:11, textTransform:"uppercase", fontWeight:700, color: r.status==="completed"?"var(--green)":r.status==="in_progress"?"var(--blue)":r.status==="cancelled"?"var(--red)":"var(--muted)" }}>{r.status}</span></td>
-                          <td style={{ fontSize:12, color:"var(--soft)" }}>{r.mileage ? Number(r.mileage).toLocaleString() : "—"}</td>
-                          <td style={{ fontSize:11, color:"var(--muted)", whiteSpace:"nowrap" }}>{fmt(r.created_at)}</td>
-                        </tr>
-                      ))}
+                      {srHistory.map(r => {
+                        const svcNames = (r.service_lines || []).map(l => l.service_name).filter(Boolean).join(", ");
+                        return (
+                          <tr key={r.id} style={{ cursor:"default" }}>
+                            <td><span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13, color:"var(--accent)" }}>{r.request_number}</span></td>
+                            <td style={{ fontSize:11, color:"var(--body)", whiteSpace:"nowrap" }}>{fmt(r.created_at)}</td>
+                            <td style={{ fontSize:12, maxWidth:180, overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{svcNames || "—"}</td>
+                            <td><span style={{ fontSize:11, textTransform:"uppercase", fontWeight:700, color: r.status==="completed"?"var(--green)":r.status==="in_progress"?"var(--blue)":r.status==="cancelled"?"var(--red)":"var(--muted)" }}>{r.status?.replace("_"," ")}</span></td>
+                            <td style={{ fontSize:12, color:"var(--soft)" }}>{r.updated_by_name || "—"}</td>
+                            <td style={{ fontSize:12, color:"var(--soft)" }}>{r.mileage ? Number(r.mileage).toLocaleString() : "—"}</td>
+                            <td style={{ fontSize:11, color: r.estimated_completion ? "var(--body)" : "var(--dim)", whiteSpace:"nowrap" }}>{r.estimated_completion ? new Date(r.estimated_completion + "T00:00:00").toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }) : "—"}</td>
+                          </tr>
+                        );
+                      })}
                     </tbody>
                   </table>
                 </div>
@@ -2007,9 +1846,16 @@ function AMVehicleRegistry({ amDisplayName }) {
                 <div className="field" style={{ gridColumn:"1/-1" }}>
                   <label>Status</label>
                   <select value={form.status} onChange={e => fv("status", e.target.value)}>
-                    <option value="Active">Active</option>
+                    <option value="Road Worthy">Active</option>
                     <option value="Retired">Retired</option>
                     <option value="Not Road Worthy">Not Road Worthy</option>
+                  </select>
+                </div>
+                <div className="field" style={{ gridColumn:"1/-1" }}>
+                  <label>Vehicle Group</label>
+                  <select value={form.group_id} onChange={e => fv("group_id", e.target.value)}>
+                    <option value="">— Unassigned —</option>
+                    {groups.filter(g => g.company_id === (editVehicle?.company_id || form.company_id)).map(g => <option key={g.id} value={g.id}>{g.name}</option>)}
                   </select>
                 </div>
                 <div className="field" style={{ gridColumn:"1/-1" }}>
@@ -2030,11 +1876,25 @@ function AMVehicleRegistry({ amDisplayName }) {
 }
 
 // ─── SERVICE REQUEST MODAL (AM) ───────────────────────────────
-function AMSRModal({ request, companiesMap, linesInvoiceData, amDisplayName, amEmail, onClose, onUpdate }) {
+function AMSRModal({ request, companiesMap, linesInvoiceData, amDisplayName, amEmail, session, onClose, onUpdate }) {
   const [status, setStatus] = useState(request.status);
+  const [estimatedCompletion, setEstimatedCompletion] = useState(request.estimated_completion || "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved]   = useState(false);
   const [vehicleStatus, setVehicleStatus] = useState(null);
+  const [pendingNoteFiles, setPendingNoteFiles] = useState(0);
+  const [showUnsentWarning, setShowUnsentWarning] = useState(false);
+  const noteRef = useRef(null);
+
+  const guardedClose = () => {
+    if (pendingNoteFiles > 0) { setShowUnsentWarning(true); return; }
+    onClose();
+  };
+
+  const handleSendAndClose = async () => {
+    await noteRef.current?.submit();
+    onClose();
+  };
 
   useEffect(() => {
     if (!request.vehicle_registry_id) return;
@@ -2046,6 +1906,7 @@ function AMSRModal({ request, companiesMap, linesInvoiceData, amDisplayName, amE
     setSaving(true);
     const { error } = await supabase.from("service_requests").update({
       status,
+      estimated_completion: estimatedCompletion || null,
       updated_by_id:    null,
       updated_by_name:  amDisplayName || amEmail,
       updated_by_email: amEmail,
@@ -2055,16 +1916,16 @@ function AMSRModal({ request, companiesMap, linesInvoiceData, amDisplayName, amE
   };
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && guardedClose()}>
       <div className="modal">
         <div className="modal-head">
           <div>
-            <h3>SR-{request.request_number} — Service Request</h3>
+            <h3>{request.request_number} — Service Request</h3>
             <div className="modal-head-sub">
               {new Date(request.created_at).toLocaleDateString("en-US", { weekday:"short", month:"long", day:"numeric", year:"numeric" })}
             </div>
           </div>
-          <button className="modal-close" onClick={onClose}>×</button>
+          <button className="modal-close" onClick={guardedClose}>×</button>
         </div>
         <div className="modal-body">
           <div className="vehicle-block">
@@ -2078,11 +1939,27 @@ function AMSRModal({ request, companiesMap, linesInvoiceData, amDisplayName, amE
             )}
           </div>
 
-          {vehicleStatus === "Not Road Worthy" && (
-            <div style={{ background:"var(--amber-dim)", border:"1px solid rgba(245,158,11,0.35)", borderRadius:6, padding:"10px 14px", marginBottom:14, display:"flex", alignItems:"center", gap:8, fontSize:13 }}>
-              <span style={{ color:"var(--amber)", fontWeight:700, fontSize:14 }}>⚠</span>
-              <span style={{ color:"var(--amber)", fontWeight:700 }}>Not Road Worthy</span>
-              <span style={{ color:"var(--body)" }}>— this vehicle is currently marked Not Road Worthy in the registry</span>
+          {/* Vehicle Status Toggle */}
+          {request.vehicle_registry_id && (
+            <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:10, marginBottom:14, padding:"10px 14px", background: vehicleStatus === "Not Road Worthy" ? "var(--amber-dim)" : vehicleStatus === "Road Worthy" ? "var(--green-dim)" : "var(--plate)", border:`1px solid ${vehicleStatus === "Not Road Worthy" ? "rgba(245,158,11,0.35)" : vehicleStatus === "Road Worthy" ? "rgba(16,185,129,0.22)" : "var(--border)"}`, borderRadius:6 }}>
+              <span style={{ fontSize:11, fontWeight:700, color:"var(--muted)", letterSpacing:"0.1em", textTransform:"uppercase", flexShrink:0 }}>Vehicle Status</span>
+              <div style={{ display:"flex", gap:0 }}>
+                {[["Road Worthy","var(--green)"],["Not Road Worthy","var(--amber)"]].map(([val,clr]) => (
+                  <button key={val} onClick={async () => {
+                    if (vehicleStatus === val) return;
+                    await supabase.from("vehicles").update({ status: val }).eq("id", request.vehicle_registry_id);
+                    await supabase.from("vehicle_status_logs").insert({
+                      vehicle_id: request.vehicle_registry_id, old_status: vehicleStatus, new_status: val,
+                      changed_by_id: session?.user?.id, changed_by_name: amDisplayName || amEmail,
+                    });
+                    setVehicleStatus(val);
+                  }} style={{
+                    padding:"4px 12px", fontSize:11, fontWeight:700, fontFamily:"'Barlow Condensed',sans-serif", letterSpacing:"0.06em",
+                    border:"1px solid var(--border)", cursor: vehicleStatus === val ? "default" : "pointer", marginRight:-1,
+                    background: vehicleStatus === val ? clr : "var(--raised)", color: vehicleStatus === val ? "#000" : "var(--muted)",
+                  }}>{val}</button>
+                ))}
+              </div>
             </div>
           )}
 
@@ -2093,13 +1970,11 @@ function AMSRModal({ request, companiesMap, linesInvoiceData, amDisplayName, amE
             <span className="detail-value">{request.service_type}</span>
             <span className="detail-label">VIN</span>
             <span className="detail-value mono">{request.vin || "—"}</span>
-            <span className="detail-label">Urgency</span>
-            <span className="detail-value"><span className={`urg ${request.urgency}`}>{request.urgency?.toUpperCase()}</span></span>
             <span className="detail-label">Updated At</span>
             <span className="detail-value" style={{ fontSize:12 }}>
               {request.updated_at ? new Date(request.updated_at).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }) + " " + new Date(request.updated_at).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit" }) : "—"}
             </span>
-            <span className="detail-label">Invoice</span>
+            <span className="detail-label">Billing Status</span>
             <span className="detail-value"><LineInvoiceBadges linesInvoiceData={linesInvoiceData} /></span>
           </div>
 
@@ -2117,18 +1992,35 @@ function AMSRModal({ request, companiesMap, linesInvoiceData, amDisplayName, amE
 
           <hr className="divider" />
 
-          <div className="field">
-            <label>Update Status</label>
-            <select value={status} onChange={e => setStatus(e.target.value)}>
-              {STATUS_OPTIONS.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-            </select>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
+            <div className="field">
+              <label>Update Status</label>
+              <select value={status} onChange={e => setStatus(e.target.value)}>
+                {STATUS_OPTIONS.map(s => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+              </select>
+            </div>
+            <div className="field">
+              <label>Estimated Completion</label>
+              <input type="date" value={estimatedCompletion} onChange={e => setEstimatedCompletion(e.target.value)}
+                style={{ colorScheme:"dark" }} />
+            </div>
           </div>
-          <NotesLog srId={request.id} currentUserName={amDisplayName || amEmail} isAdmin={false} />
+          <NotesLog ref={noteRef} srId={request.id} currentUserName={amDisplayName || amEmail} isAdmin={false} canSetClientVisible={true} onPendingFilesChange={setPendingNoteFiles} />
+
+          {showUnsentWarning && (
+            <div style={{ background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.3)", borderRadius:6, padding:"10px 14px", marginTop:10, fontSize:13, color:"var(--body)" }}>
+              <strong style={{ color:"var(--accent)" }}>You have {pendingNoteFiles} unsent photo(s).</strong> Send them before closing?
+              <div style={{ display:"flex", gap:8, marginTop:8 }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => setShowUnsentWarning(false)}>Go Back</button>
+                <button className="btn btn-primary btn-sm" onClick={handleSendAndClose}>Send and Close</button>
+              </div>
+            </div>
+          )}
 
           {saved && <div className="success-box">Saved successfully</div>}
 
           <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
-            <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button className="btn btn-ghost" onClick={guardedClose}>Cancel</button>
             <button className="btn btn-primary" onClick={handleSave} disabled={saving}>
               {saving ? "Saving…" : "Save Changes"}
             </button>
@@ -2137,6 +2029,13 @@ function AMSRModal({ request, companiesMap, linesInvoiceData, amDisplayName, amE
       </div>
     </div>
   );
+}
+
+function amTruncateWords(str, max) {
+  if (!str || str.length <= max) return { short: str || "", full: str || "", truncated: false };
+  const cut = str.lastIndexOf(" ", max);
+  const short = (cut > 0 ? str.slice(0, cut) : str.slice(0, max)) + "…";
+  return { short, full: str, truncated: true };
 }
 
 // ─── SERVICE REQUESTS VIEW (AM) ───────────────────────────────
@@ -2148,25 +2047,39 @@ function AMServiceRequests({ session, amDisplayName }) {
   const [search, setSearch]               = useState("");
   const [selected, setSelected]           = useState(null);
   const [linesInvoiceMap, setLinesInvoiceMap] = useState({}); // sr_id → [{line_letter, status}]
+  const [srServicesMap, setSrServicesMap]     = useState({}); // sr_id → {short, full, truncated}
 
   const load = async () => {
     setLoading(true);
     const [{ data }, { data: cos }, { data: invs }] = await Promise.all([
-      supabase.from("service_requests").select("*").order("created_at", { ascending: false }),
+      supabase.from("service_requests").select("*").is("archived_at", null).order("created_at", { ascending: false }),
       supabase.from("companies").select("id, name"),
-      supabase.from("invoices").select("service_request_id, status, service_line_id, service_lines(line_letter)"),
+      supabase.from("invoices").select("service_request_id, status, service_line_id, service_lines(line_letter, service_name)").eq("is_incognito", false).is("archived_at", null),
     ]);
     const map = {};
     (cos || []).forEach(c => { map[c.id] = c.name; });
     setCompaniesMap(map);
     setRequests(data || []);
     const imap = {};
+    const smap = {};
     (invs || []).forEach(i => {
       if (!i.service_request_id) return;
       if (!imap[i.service_request_id]) imap[i.service_request_id] = [];
       imap[i.service_request_id].push({ line_letter: i.service_lines?.line_letter || "?", status: i.status });
+      const sl = i.service_lines;
+      const text = (sl?.service_name || "").trim();
+      if (text) {
+        if (!smap[i.service_request_id]) smap[i.service_request_id] = [];
+        smap[i.service_request_id].push(`${sl.line_letter || "?"}: ${text}`);
+      }
     });
+    const servMap = {};
+    for (const [id, parts] of Object.entries(smap)) {
+      const full = parts.join(" · ");
+      servMap[id] = amTruncateWords(full, 55);
+    }
     setLinesInvoiceMap(imap);
+    setSrServicesMap(servMap);
     setLoading(false);
   };
 
@@ -2241,10 +2154,9 @@ function AMServiceRequests({ session, amDisplayName }) {
                 <th>Company</th>
                 <th>Vehicle</th>
                 <th>VIN</th>
-                <th>Service Type</th>
-                <th>Urgency</th>
-                <th>Status</th>
-                <th>Invoice</th>
+                <th>Service</th>
+                <th>Service Status</th>
+                <th>Billing Status</th>
                 <th>Updated By</th>
                 <th></th>
               </tr>
@@ -2260,7 +2172,7 @@ function AMServiceRequests({ session, amDisplayName }) {
                   </td>
                   <td>
                     <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13, color:"var(--accent)", letterSpacing:"0.05em" }}>
-                      SR-{r.request_number}
+                      {r.request_number}
                     </span>
                   </td>
                   <td style={{ fontWeight:600, fontSize:13 }}>{companiesMap[r.company_id] || "—"}</td>
@@ -2273,8 +2185,7 @@ function AMServiceRequests({ session, amDisplayName }) {
                     )}
                   </td>
                   <td className="mono">{r.vin || "—"}</td>
-                  <td style={{ fontSize:13 }}>{r.service_type}</td>
-                  <td><span className={`urg ${r.urgency}`}>{r.urgency}</span></td>
+                  <td><SvcPreviewCell svc={srServicesMap[r.id]} /></td>
                   <td><SRStatusBadge status={r.status} /></td>
                   <td><LineInvoiceBadges linesInvoiceData={linesInvoiceMap[r.id]} /></td>
                   <td>
@@ -2304,6 +2215,7 @@ function AMServiceRequests({ session, amDisplayName }) {
           linesInvoiceData={linesInvoiceMap[selected.id]}
           amDisplayName={amDisplayName}
           amEmail={session.user?.email}
+          session={session}
           onClose={() => setSelected(null)}
           onUpdate={() => { load(); setSelected(null); }} />
       )}
@@ -2322,17 +2234,23 @@ function AMAuth({ onLogin }) {
     setLoading(true); setError("");
     const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
-    if (err || !data?.session) { setError(err?.message || "Invalid credentials."); return; }
+    if (err || !data?.session) {
+      setError(err?.message || "Invalid credentials.");
+      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "account_manager" } }).catch(() => {});
+      return;
+    }
     const { data: amData, error: amErr } = await supabase
       .from("account_managers")
       .select("id, display_name")
       .eq("id", data.session.user.id)
       .single();
     if (amErr || !amData) {
+      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "account_manager", reason: "not_am" } }).catch(() => {});
       await supabase.auth.signOut();
       setError("Access denied. This account does not have account manager privileges.");
       return;
     }
+    supabase.rpc("log_auth_event", { p_action: "login_success", p_status: "success", p_metadata: { portal: "account_manager" } }).catch(() => {});
     onLogin(data.session, amData.display_name || null);
   };
 
@@ -2364,18 +2282,56 @@ function AMAuth({ onLogin }) {
 
 // ─── APP ROOT ─────────────────────────────────────────────────
 export default function AccountManagerApp() {
+  const navigate = useNavigate();
   const [session, setSession]         = useState(null);
   const [displayName, setDisplayName] = useState(null);
-  const [tab, setTab]                 = useState("billing");
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [tab, setTab]                 = useState(() => {
+    const p = new URLSearchParams(window.location.search).get("tab");
+    return ["requests","billing","companies","vehicles"].includes(p) ? p : "billing";
+  });
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 768);
+  const [loading, setLoading]         = useState(true);
+  const [refreshKey, setRefreshKey]   = useState(0);
+  const [hasUpdates, setHasUpdates]   = useState(false);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session: sess } }) => {
+      if (!sess) { navigate("/"); return; }
+      const { data: amRow } = await supabase.from("account_managers")
+        .select("id, display_name").eq("id", sess.user.id).maybeSingle();
+      if (!amRow) { navigate("/"); return; }
+      setSession(sess);
+      setDisplayName(amRow.display_name || null);
+      setLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!session) return;
+    const mark = () => setHasUpdates(true);
+    const channel = supabase.channel("am-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "service_requests" }, mark)
+      .on("postgres_changes", { event: "*", schema: "public", table: "invoices" }, mark)
+      .on("postgres_changes", { event: "*", schema: "public", table: "service_lines" }, mark)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [session]);
+
+  const applyUpdates = () => { setHasUpdates(false); setRefreshKey(k => k + 1); };
 
   const handleLogout = async () => {
+    supabase.rpc("log_auth_event", { p_action: "logout", p_status: "success", p_metadata: { portal: "account_manager" } }).catch(() => {});
     await supabase.auth.signOut();
-    setSession(null);
-    setDisplayName(null);
+    window.location.href = "/";
   };
 
-  const handleNav = (id) => { setTab(id); if (window.innerWidth <= 768) setSidebarOpen(false); };
+  const handleNav = (id) => {
+    setTab(id);
+    const url = new URL(window.location);
+    url.searchParams.set("tab", id);
+    window.history.replaceState({}, "", url);
+    if (window.innerWidth <= 768) setSidebarOpen(false);
+  };
 
   const navItems = [
     { id:"requests",  label:"Service Requests",  icon:<IcoWrench />   },
@@ -2386,13 +2342,12 @@ export default function AccountManagerApp() {
 
   const pageTitle = { requests:"Service Requests", billing:"Billing", companies:"DSPs", vehicles:"Vehicle Registry" };
 
+  if (loading) return <style>{css}</style>;
+
   return (
     <>
       <style>{css}</style>
-      {!session ? (
-        <AMAuth onLogin={(sess, dispName) => { setSession(sess); setDisplayName(dispName); }} />
-      ) : (
-        <div className="app-shell">
+      <div className="app-shell">
           {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
 
           <aside className={`sidebar ${sidebarOpen ? "open" : ""}`}>
@@ -2419,16 +2374,20 @@ export default function AccountManagerApp() {
             <div className="main-header">
               <button className="menu-btn" onClick={() => setSidebarOpen(o => !o)}><IcoMenu /></button>
               <div className="main-header-title">{pageTitle[tab]}</div>
+              {hasUpdates && (
+                <button className="btn btn-sm" onClick={applyUpdates} style={{ background:"var(--blue-dim)", color:"#60a5fa", border:"1px solid rgba(59,130,246,0.3)" }}>
+                  New updates — click to refresh
+                </button>
+              )}
             </div>
             <div className="main-content">
-              {tab === "requests"  && <AMServiceRequests session={session} amDisplayName={displayName} />}
-              {tab === "billing"   && <Billing amDisplayName={displayName} amEmail={session.user?.email} />}
-              {tab === "companies" && <AMCompanies />}
-              {tab === "vehicles"  && <AMVehicleRegistry amDisplayName={displayName} />}
+              {tab === "requests"  && <AMServiceRequests key={refreshKey} session={session} amDisplayName={displayName} />}
+              {tab === "billing"   && <Billing key={refreshKey} amDisplayName={displayName} amEmail={session.user?.email} />}
+              {tab === "companies" && <AMCompanies key={refreshKey} />}
+              {tab === "vehicles"  && <AMVehicleRegistry key={refreshKey} amDisplayName={displayName} />}
             </div>
           </main>
-        </div>
-      )}
+      </div>
     </>
   );
 }

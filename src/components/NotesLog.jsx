@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useImperativeHandle, forwardRef } from "react";
 
 async function downloadFile(signedUrl, filename) {
   try {
@@ -14,7 +14,6 @@ async function downloadFile(signedUrl, filename) {
     // silently ignore — signed URL may have expired
   }
 }
-import heic2any from "heic2any";
 import { supabase } from "../lib/supabase";
 
 const BUCKET = "note-attachments";
@@ -50,10 +49,44 @@ function isHeicFile(file) {
 }
 
 async function convertHeicToJpeg(file) {
+  const { default: heic2any } = await import("heic2any");
   const resultBlob = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.85 });
   const blob = Array.isArray(resultBlob) ? resultBlob[0] : resultBlob;
   const newName = file.name.replace(/\.(heic|heif)$/i, ".jpg");
   return new File([blob], newName, { type: "image/jpeg" });
+}
+
+async function compressImage(file, maxDim = 1920, quality = 0.8) {
+  if (file.size < 200 * 1024) return file; // skip if already small
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxDim || height > maxDim) {
+        const ratio = Math.min(maxDim / width, maxDim / height);
+        width = Math.round(width * ratio);
+        height = Math.round(height * ratio);
+      }
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext("2d").drawImage(img, 0, 0, width, height);
+      canvas.toBlob(
+        (blob) => {
+          if (blob && blob.size < file.size) {
+            resolve(new File([blob], file.name.replace(/\.\w+$/, ".jpg"), { type: "image/jpeg" }));
+          } else {
+            resolve(file); // compressed is bigger — keep original
+          }
+        },
+        "image/jpeg",
+        quality,
+      );
+      URL.revokeObjectURL(img.src);
+    };
+    img.onerror = () => { URL.revokeObjectURL(img.src); resolve(file); };
+    img.src = URL.createObjectURL(file);
+  });
 }
 
 function uid() {
@@ -146,6 +179,27 @@ function AttachmentInline({ att, signedUrl, onImageClick }) {
     clearTimeout(longPressTimer.current);
   };
 
+  if (att._uploading) {
+    return (
+      <div style={{
+        width: 64, height: 64, borderRadius: 4, border: "1px solid var(--border)",
+        background: "var(--surface)", display: "flex", alignItems: "center",
+        justifyContent: "center", fontSize: 9, color: "var(--muted)",
+        textAlign: "center", padding: 4, boxSizing: "border-box", position: "relative",
+      }}>
+        <span>Uploading…</span>
+        <div style={{
+          position: "absolute", bottom: 0, left: 0, right: 0, height: 3,
+          background: "var(--border)", borderRadius: "0 0 4px 4px", overflow: "hidden",
+        }}>
+          <div style={{
+            height: "100%", background: "var(--accent)", borderRadius: "0 0 4px 4px",
+            width: "60%", animation: "pulse 1.5s ease-in-out infinite",
+          }} />
+        </div>
+      </div>
+    );
+  }
   if (!signedUrl) {
     return (
       <div style={{
@@ -198,22 +252,54 @@ function AttachmentInline({ att, signedUrl, onImageClick }) {
   return null;
 }
 
+// ── Background upload queue (survives component unmount) ─────────────────────
+
+const bgQueue = new Map(); // noteId → Promise
+
+async function bgUploadAndPatch(supabaseClient, bucket, srId, noteId, files) {
+  const results = [];
+  for (const entry of files) {
+    const path = `notes/${srId}/${noteId}/${entry.name}`;
+    const { error } = await supabaseClient.storage.from(bucket).upload(path, entry.file, {
+      cacheControl: "3600", upsert: false,
+    });
+    if (!error) results.push({ path, filename: entry.name, type: entry.type, size: entry.file.size });
+  }
+  if (results.length > 0) {
+    await supabaseClient.from("sr_notes").update({ attachments: results }).eq("id", noteId);
+  }
+  bgQueue.delete(noteId);
+  // Clean up preview URLs
+  files.forEach(f => { if (f.previewUrl) URL.revokeObjectURL(f.previewUrl); });
+  return results;
+}
+
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function NotesLog({ srId, currentUserName, isAdmin }) {
+const NotesLog = forwardRef(function NotesLog({ srId, currentUserName, isAdmin, canSetClientVisible = false, onPendingFilesChange }, ref) {
   const [notes,            setNotes]            = useState([]);
   const [myUserId,         setMyUserId]         = useState(null);
 
   // New-note input
   const [input,            setInput]            = useState("");
+  const [clientVisible,    setClientVisible]    = useState(false);
   const [pendingFiles,     setPendingFiles]     = useState([]);  // { id, file, name, previewUrl, type }
   const [fileError,        setFileError]        = useState("");
   const [submitting,       setSubmitting]       = useState(false);
   const [uploadProgress,   setUploadProgress]   = useState({});  // { [fileId]: 0-100 }
 
+  // Notify parent when pending files change
+  useEffect(() => {
+    onPendingFilesChange?.(pendingFiles.length);
+  }, [pendingFiles.length, onPendingFilesChange]);
+
+  // Expose submit to parent (for "Send and Close" guard)
+  const handleSubmitRef = useRef(null);
+
   // Edit state
   const [editingId,        setEditingId]        = useState(null);
   const [editBody,         setEditBody]         = useState("");
+  const [editClientVisible, setEditClientVisible] = useState(false);
   const [editPendingFiles, setEditPendingFiles] = useState([]);
   const [editRemovedPaths, setEditRemovedPaths] = useState([]);
   const [editFileError,    setEditFileError]    = useState("");
@@ -302,6 +388,9 @@ export default function NotesLog({ srId, currentUserName, isAdmin }) {
     if (isHeicFile(file)) {
       try { f = await convertHeicToJpeg(file); } catch { /* use original on failure */ }
     }
+    if (isImage(f.type)) {
+      try { f = await compressImage(f); } catch { /* use uncompressed on failure */ }
+    }
     const previewUrl = isImage(f.type) ? URL.createObjectURL(f) : null;
     return { id: uid(), file: f, name: f.name, previewUrl, type: f.type };
   };
@@ -373,7 +462,10 @@ export default function NotesLog({ srId, currentUserName, isAdmin }) {
     setSubmitting(true);
     setUploadProgress({});
 
-    // Insert note row first to get the id
+    const filesToUpload = [...pendingFiles];
+    const hasFiles = filesToUpload.length > 0;
+
+    // Insert note row immediately (photos upload in background)
     const { data: note, error: insertErr } = await supabase
       .from("sr_notes")
       .insert({
@@ -382,6 +474,7 @@ export default function NotesLog({ srId, currentUserName, isAdmin }) {
         author_name: currentUserName || "Unknown",
         body:        body || null,
         attachments: [],
+        client_visible: clientVisible,
       })
       .select()
       .single();
@@ -391,34 +484,48 @@ export default function NotesLog({ srId, currentUserName, isAdmin }) {
       return;
     }
 
-    let attachments = [];
-    if (pendingFiles.length > 0) {
-      attachments = await uploadFiles(pendingFiles, note.id);
-      if (attachments.length > 0) {
-        await supabase.from("sr_notes").update({ attachments }).eq("id", note.id);
-      }
-    }
-
-    // Fetch signed URLs for new attachments
-    if (attachments.length > 0) {
-      await refreshSignedUrls([{ attachments }]);
-    }
-
-    // Clean up object URLs
-    pendingFiles.forEach(f => { if (f.previewUrl) URL.revokeObjectURL(f.previewUrl); });
-
+    // Clear input immediately — note is saved
     setInput("");
+    setClientVisible(false);
     setPendingFiles([]);
     setUploadProgress({});
-    setNotes(prev => [...prev, { ...note, attachments }]);
+
+    // Show note in the list right away (with uploading placeholder if files pending)
+    const placeholderAtts = hasFiles
+      ? filesToUpload.map(f => ({ path: null, filename: f.name, type: f.type, _uploading: true }))
+      : [];
+    setNotes(prev => [...prev, { ...note, attachments: placeholderAtts }]);
     setSubmitting(false);
+
+    // Upload files in background (survives component unmount)
+    if (hasFiles) {
+      const uploadPromise = bgUploadAndPatch(supabase, BUCKET, srId, note.id, filesToUpload)
+        .then(attachments => {
+          // If component is still mounted, update the note in-place
+          setNotes(prev => prev.map(n =>
+            n.id === note.id ? { ...n, attachments: attachments.length > 0 ? attachments : [] } : n
+          ));
+          if (attachments.length > 0) refreshSignedUrls([{ attachments }]);
+        })
+        .catch(() => {
+          // Upload failed — note text is already saved; remove uploading placeholders
+          setNotes(prev => prev.map(n =>
+            n.id === note.id ? { ...n, attachments: [] } : n
+          ));
+        });
+      bgQueue.set(note.id, uploadPromise);
+    }
   };
+
+  handleSubmitRef.current = handleSubmit;
+  useImperativeHandle(ref, () => ({ submit: () => handleSubmitRef.current?.() }), []);
 
   // ── Edit ─────────────────────────────────────────────────────────────────────
 
   const startEdit = (note) => {
     setEditingId(note.id);
     setEditBody(note.body || "");
+    setEditClientVisible(note.client_visible || false);
     setEditPendingFiles([]);
     setEditRemovedPaths([]);
     setEditFileError("");
@@ -454,7 +561,7 @@ export default function NotesLog({ srId, currentUserName, isAdmin }) {
 
     const { data, error } = await supabase
       .from("sr_notes")
-      .update({ body: body || null, edited_at: new Date().toISOString(), attachments: finalAttachments })
+      .update({ body: body || null, edited_at: new Date().toISOString(), attachments: finalAttachments, client_visible: editClientVisible })
       .eq("id", note.id)
       .select()
       .single();
@@ -551,6 +658,13 @@ export default function NotesLog({ srId, currentUserName, isAdmin }) {
                         edited {fmt(note.edited_at)}
                       </span>
                     )}
+                    {note.client_visible && (
+                      <span style={{
+                        fontSize: 9, fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase",
+                        background: "rgba(59,130,246,0.12)", color: "#60a5fa", border: "1px solid rgba(59,130,246,0.22)",
+                        borderRadius: 3, padding: "1px 6px",
+                      }}>Client Visible</span>
+                    )}
                     <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
                       {isOwn(note) && editingId !== note.id && (
                         <button onClick={() => startEdit(note)} style={{
@@ -646,6 +760,11 @@ export default function NotesLog({ srId, currentUserName, isAdmin }) {
                           title="Attach files (JPG, PNG, HEIC, MP4, MOV)">
                           <ClipIcon /> Attach
                         </button>
+                        <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", marginLeft: "auto", fontSize: 11, color: editClientVisible ? "#60a5fa" : "var(--muted)", letterSpacing: 0 }}>
+                          <input type="checkbox" checked={editClientVisible} onChange={e => setEditClientVisible(e.target.checked)}
+                            style={{ width: 13, height: 13, accentColor: "#3b82f6", cursor: "pointer" }} />
+                          Client Visible
+                        </label>
                       </div>
                     </div>
 
@@ -733,11 +852,20 @@ export default function NotesLog({ srId, currentUserName, isAdmin }) {
             <button className="btn btn-ghost btn-sm" onClick={handleSubmit}
               disabled={submitting || (!input.trim() && pendingFiles.length === 0)}
               style={{ whiteSpace: "nowrap" }}>
-              {submitting ? "Posting…" : "Add Note"}
+              {submitting ? "Sending…" : "Send"}
             </button>
           </div>
         </div>
+        {canSetClientVisible && (
+          <label style={{ display: "flex", alignItems: "center", gap: 5, cursor: "pointer", marginTop: 6, fontSize: 11, color: clientVisible ? "#60a5fa" : "var(--muted)" }}>
+            <input type="checkbox" checked={clientVisible} onChange={e => setClientVisible(e.target.checked)}
+              style={{ width: 13, height: 13, accentColor: "#3b82f6", cursor: "pointer" }} />
+            Client Visible — note will be shown to the client on their portal
+          </label>
+        )}
       </div>
     </>
   );
-}
+});
+
+export default NotesLog;

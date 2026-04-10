@@ -2,7 +2,7 @@
 
 ### Overview
 - `vehicles` table with unique constraint `(company_id, vehicle_id)` — different companies can share vehicle IDs
-- Three statuses: `Active`, `Retired`, `Not Road Worthy` (check constraint enforced)
+- Three statuses: `Road Worthy`, `Retired`, `Not Road Worthy` (check constraint enforced)
 - `VehicleRegistry` component lives in `AdminDashboard.jsx`
 - Editing a vehicle updates only the `vehicles` table — does NOT retroactively change SR snapshots
 - Company is locked on edit — to move a vehicle, deactivate old and create new
@@ -10,9 +10,9 @@
 ### Status Behavior
 | Status          | SR Lookup | Behavior |
 |-----------------|-----------|----------|
-| Active          | Allowed   | No restriction |
+| Road Worthy     | Allowed   | No restriction |
 | Retired         | Blocked   | Red banner; form submission blocked |
-| Not Road Worthy | Allowed   | Amber warning banner in lookup + mechanic UpdateModal badge |
+| Not Road Worthy | Allowed   | Amber warning banner in lookup; mechanic UpdateModal has toggle buttons to change status |
 
 Registry lookup queries all statuses and branches on result — no `.eq("active", true)` filter.
 

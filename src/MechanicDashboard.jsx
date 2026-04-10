@@ -1,242 +1,23 @@
 import { useState, useEffect, useRef } from "react";
-import { createClient } from "@supabase/supabase-js";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "./lib/supabase";
 import NotesLog from "./components/NotesLog";
 import ServiceLinesEditor from "./components/ServiceLinesEditor";
+import { SvcPreviewCell } from "./components/StatusBadge";
+import BarcodeScanner from "./components/BarcodeScanner";
+import { IcoWrench, IcoRefresh, IcoChevron, IcoPlus, IcoMenu, IcoBarcode } from "./components/Icons";
 
-const SUPABASE_URL = "https://kiayjlepwmdacojhpisq.supabase.co";
-const SUPABASE_ANON_KEY = "sb_publishable_b7zg8JgNWZuMjkG7_HnLeg_yylvj3MH";
-const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-
-// ─── ICONS ───────────────────────────────────────────────────
-const IcoWrench  = () => <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 000 1.4l1.6 1.6a1 1 0 001.4 0l3.77-3.77a6 6 0 01-7.94 7.94l-6.91 6.91a2.12 2.12 0 01-3-3l6.91-6.91a6 6 0 017.94-7.94l-3.76 3.76z"/></svg>;
-const IcoRefresh = () => <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>;
-const IcoChevron = () => <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>;
-const IcoPlus    = () => <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
-const IcoMenu    = () => <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>;
-
-// ─── DESIGN TOKENS (MECHANIC PORTAL — TEAL ACCENT) ───────────
+// ─── PORTAL-SPECIFIC OVERRIDES (MECHANIC — TEAL BADGE) ──────
 const css = `
-  @import url('https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;600;700;900&family=Barlow:wght@400;500;600&display=swap');
-
-  :root {
-    --base:    #070b11;
-    --surface: #0d1520;
-    --raised:  #111c2c;
-    --plate:   #162338;
-    --border:  #1c2d42;
-    --rim:     #243a55;
-    --dim:     #374f68;
-    --muted:   #526a84;
-    --soft:    #738fa8;
-    --body:    #9ab2c8;
-    --text:    #bfd0e2;
-    --snow:    #dae7f2;
-    --white:   #edf4fd;
-    --accent:     #f59e0b;
-    --accent-hot: #fbbf24;
-    --accent-dim: rgba(245,158,11,0.10);
-    --accent-rim: rgba(245,158,11,0.22);
-    --green:  #10b981; --green-dim:  rgba(16,185,129,0.12);
-    --red:    #ef4444; --red-dim:    rgba(239,68,68,0.12);
-    --blue:   #3b82f6; --blue-dim:   rgba(59,130,246,0.12);
-    --purple: #8b5cf6; --purple-dim: rgba(139,92,246,0.12);
-    --amber:  #f59e0b;
-    --sidebar-w: 216px;
-    --topbar-h:  44px;
-    --row-h:     32px;
+  /* ── Mechanic portal tag (teal) ── */
+  .auth-logo .portal-tag {
+    background:rgba(13,148,136,0.15); color:#2dd4bf;
+    border:1px solid rgba(13,148,136,0.35);
   }
-
-  html, body { height:100%; }
-  body { font-family:'Barlow',sans-serif; background:var(--base); color:var(--text); overflow:hidden; }
-  ::-webkit-scrollbar { width:5px; height:5px; }
-  ::-webkit-scrollbar-track { background:transparent; }
-  ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
-  ::-webkit-scrollbar-thumb:hover { background:var(--rim); }
-
-  /* ── AUTH ── */
-  .auth-wrap { height:100dvh; display:flex; align-items:center; justify-content:center; background:var(--base); }
-  .auth-card {
-    width:100%; max-width:360px; padding:40px;
-    background:var(--raised); border:1px solid var(--border); border-radius:8px;
-    animation:slideUp 0.3s ease;
-  }
-  @keyframes slideUp { from{opacity:0;transform:translateY(14px);} to{opacity:1;transform:translateY(0);} }
-  .auth-logo { font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:900; letter-spacing:0.07em; text-transform:uppercase; color:var(--white); display:flex; align-items:center; gap:6px; margin-bottom:28px; }
-  .auth-logo em { color:var(--accent); font-style:normal; }
-  .auth-logo .portal-tag { font-size:9px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; background:rgba(13,148,136,0.15); color:#2dd4bf; border:1px solid rgba(13,148,136,0.35); border-radius:3px; padding:2px 6px; }
-  .auth-card h2 { font-family:'Barlow Condensed',sans-serif; font-size:24px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--snow); margin-bottom:4px; }
-  .auth-card .sub { font-size:12px; color:var(--muted); margin-bottom:24px; }
-
-  /* ── FORM ── */
-  .field { margin-bottom:14px; }
-  label { display:block; font-size:10px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); margin-bottom:5px; }
-  input, select, textarea { width:100%; background:var(--plate); border:1px solid var(--border); border-radius:5px; padding:8px 11px; font-family:'Barlow',sans-serif; font-size:13px; color:var(--white); outline:none; transition:border-color 0.15s, box-shadow 0.15s; }
-  input::placeholder, textarea::placeholder { color:var(--dim); }
-  input:focus, select:focus, textarea:focus { border-color:var(--accent); box-shadow:0 0 0 2px var(--accent-dim); }
-  select option { background:var(--surface); }
-  textarea { resize:vertical; min-height:80px; line-height:1.5; }
-
-  /* ── BUTTONS ── */
-  .btn { display:inline-flex; align-items:center; justify-content:center; gap:6px; padding:8px 16px; border-radius:5px; font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; border:none; transition:all 0.15s; white-space:nowrap; }
-  .btn-primary { background:var(--accent); color:#000; }
-  .btn-primary:hover:not(:disabled) { background:var(--accent-hot); }
-  .btn-primary:active:not(:disabled) { transform:scale(0.97); }
-  .btn-primary:disabled { opacity:0.4; cursor:not-allowed; }
-  .btn-ghost { background:transparent; border:1px solid var(--border); color:var(--body); }
-  .btn-ghost:hover { border-color:var(--rim); color:var(--text); }
-  .btn-danger { background:transparent; border:1px solid rgba(239,68,68,0.25); color:var(--red); }
-  .btn-danger:hover { background:var(--red-dim); }
-  .btn-sm { padding:5px 11px; font-size:11px; }
-
-  /* ── FEEDBACK ── */
-  .error-box { background:var(--red-dim); border:1px solid rgba(239,68,68,0.25); border-radius:4px; padding:9px 12px; font-size:12px; color:#fca5a5; margin-bottom:14px; }
-  .success-box { background:var(--green-dim); border:1px solid rgba(16,185,129,0.25); border-radius:4px; padding:9px 12px; font-size:12px; color:#6ee7b7; margin-bottom:14px; }
-
-  /* ── SIDEBAR LAYOUT ── */
-  .app-shell { height:100dvh; display:flex; overflow:hidden; background:var(--base); }
-  .sidebar { width:var(--sidebar-w); background:var(--surface); border-right:1px solid var(--border); display:flex; flex-direction:column; flex-shrink:0; height:100%; }
-  .sidebar-header { height:var(--topbar-h); display:flex; align-items:center; padding:0 16px; border-bottom:1px solid var(--border); flex-shrink:0; }
-  .sidebar-logo { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:900; letter-spacing:0.07em; text-transform:uppercase; color:var(--white); }
-  .sidebar-logo em { color:var(--accent); font-style:normal; }
-  .sidebar-portal-tag { margin-left:8px; font-size:9px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase; background:rgba(13,148,136,0.15); color:#2dd4bf; border:1px solid rgba(13,148,136,0.35); border-radius:3px; padding:2px 6px; }
-  .sidebar-nav { flex:1; padding:8px; display:flex; flex-direction:column; gap:2px; overflow-y:auto; }
-  .sidebar-section-label { font-size:9px; font-weight:700; letter-spacing:0.22em; text-transform:uppercase; color:var(--dim); padding:10px 8px 4px; }
-  .nav-item { display:flex; align-items:center; gap:9px; padding:0 10px; height:32px; border-radius:4px; font-family:'Barlow Condensed',sans-serif; font-size:12px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; cursor:pointer; border:none; background:transparent; color:var(--muted); transition:all 0.15s; width:100%; text-align:left; }
-  .nav-item:hover { background:var(--raised); color:var(--text); }
-  .nav-item.active { background:var(--accent-dim); color:var(--accent); }
-  .sidebar-bottom { border-top:1px solid var(--border); padding:12px 14px; flex-shrink:0; }
-  .sidebar-user-name { font-size:12px; font-weight:600; color:var(--text); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:2px; }
-  .sidebar-user-email { font-size:10px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-bottom:8px; }
-
-  /* ── MAIN ── */
-  .main-area { flex:1; display:flex; flex-direction:column; overflow:hidden; min-width:0; }
-  .main-header { height:var(--topbar-h); background:var(--surface); border-bottom:1px solid var(--border); display:flex; align-items:center; justify-content:space-between; padding:0 20px; flex-shrink:0; }
-  .main-header-title { font-family:'Barlow Condensed',sans-serif; font-size:14px; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; color:var(--snow); }
-  .main-header-actions { display:flex; align-items:center; gap:8px; }
-  .main-content { flex:1; overflow-y:auto; padding:20px; }
-
-  /* ── STATS ── */
-  .stats-row { display:grid; gap:10px; margin-bottom:16px; }
-  .stats-5 { grid-template-columns:repeat(5,1fr); }
-  .stat-card { background:var(--raised); border:1px solid var(--border); border-radius:5px; padding:12px 14px; }
-  .stat-label { font-size:10px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); margin-bottom:5px; }
-  .stat-value { font-family:'Barlow Condensed',sans-serif; font-size:30px; font-weight:900; color:var(--white); line-height:1; }
-  .stat-value.c-teal   { color:#2dd4bf; }
-  .stat-value.c-blue   { color:#60a5fa; }
-  .stat-value.c-green  { color:#34d399; }
-  .stat-value.c-red    { color:#f87171; }
-  .stat-value.c-purple { color:#a78bfa; }
-
-  /* ── TABLE ── */
-  .table-wrap { background:var(--raised); border:1px solid var(--border); border-radius:5px; overflow-x:auto; overflow-y:hidden; -webkit-overflow-scrolling:touch; }
-  table { width:100%; border-collapse:collapse; }
-  thead tr { background:var(--surface); border-bottom:1px solid var(--border); }
-  th { font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); padding:0 14px; height:30px; text-align:left; white-space:nowrap; }
-  td { padding:0 14px; height:32px; font-size:13px; border-bottom:1px solid rgba(28,45,66,0.6); vertical-align:middle; }
-  tr:last-child td { border-bottom:none; }
-  tbody tr:hover td { background:rgba(255,255,255,0.025); }
-  tbody tr { cursor:pointer; }
-  .mono { font-family:monospace; font-size:11px; letter-spacing:0.03em; color:var(--soft); }
-
-  /* ── BADGES ── */
-  .badge { display:inline-flex; align-items:center; gap:5px; padding:0 7px; height:18px; border-radius:3px; font-family:'Barlow Condensed',sans-serif; font-size:10px; font-weight:700; letter-spacing:0.12em; text-transform:uppercase; white-space:nowrap; }
-  .badge-dot { width:5px; height:5px; border-radius:50%; flex-shrink:0; }
-  .badge.pending     { background:rgba(245,158,11,0.12); color:#fbbf24; border:1px solid rgba(245,158,11,0.22); }
-  .badge.pending .badge-dot     { background:#fbbf24; }
-  .badge.in_progress { background:rgba(59,130,246,0.12); color:#60a5fa; border:1px solid rgba(59,130,246,0.22); }
-  .badge.in_progress .badge-dot { background:#60a5fa; animation:pulse 1.5s infinite; }
-  .badge.completed   { background:rgba(16,185,129,0.12); color:#34d399; border:1px solid rgba(16,185,129,0.22); }
-  .badge.completed .badge-dot   { background:#34d399; }
-  .badge.cancelled   { background:rgba(75,85,99,0.12); color:#6b7280; border:1px solid rgba(75,85,99,0.2); }
-  .badge.cancelled .badge-dot   { background:#6b7280; }
-  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
-
-  /* ── URGENCY ── */
-  .urg { font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:0.12em; font-family:'Barlow Condensed',sans-serif; }
-  .urg.low    { color:var(--green); }
-  .urg.medium { color:var(--amber); }
-  .urg.high   { color:var(--red); }
-
-  /* ── TOOLBAR ── */
-  .toolbar { display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:10px; flex-wrap:wrap; }
-  .filters { display:flex; gap:5px; flex-wrap:wrap; }
-  .filter-btn { font-family:'Barlow Condensed',sans-serif; font-size:11px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; padding:0 11px; height:24px; border-radius:3px; cursor:pointer; border:1px solid var(--border); background:transparent; color:var(--muted); transition:all 0.15s; display:flex; align-items:center; }
-  .filter-btn:hover { border-color:var(--rim); color:var(--body); }
-  .filter-btn.active { background:var(--accent); border-color:var(--accent); color:#000; }
-  .search-input { background:var(--raised); border:1px solid var(--border); border-radius:4px; padding:0 10px; height:26px; font-size:12px; color:var(--text); outline:none; width:200px; font-family:'Barlow',sans-serif; }
-  .search-input::placeholder { color:var(--dim); }
-  .search-input:focus { border-color:var(--rim); }
-
-  /* ── MODAL ── */
-  .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.78); display:flex; align-items:center; justify-content:center; z-index:500; padding:20px; animation:fadeIn 0.18s ease; }
-  @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
-  .modal { background:var(--raised); border:1px solid var(--border); border-radius:7px; width:100%; max-width:520px; max-height:90vh; overflow-y:auto; }
-  @media (min-width:900px) { .modal { max-width:min(83vw,1100px); max-height:88vh; } }
-  .modal-head { padding:18px 22px 14px; display:flex; align-items:flex-start; justify-content:space-between; border-bottom:1px solid var(--border); position:sticky; top:0; background:var(--raised); z-index:1; }
-  .modal-head h3 { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:900; text-transform:uppercase; letter-spacing:0.06em; color:var(--snow); }
-  .modal-head-sub { font-size:11px; color:var(--muted); margin-top:2px; }
-  .modal-close { background:none; border:none; color:var(--muted); font-size:20px; cursor:pointer; line-height:1; padding:0; }
-  .modal-close:hover { color:var(--text); }
-  .modal-body { padding:16px 22px 22px; }
-  .detail-grid { display:grid; grid-template-columns:110px 1fr; row-gap:4px; column-gap:10px; margin-bottom:14px; }
-  .detail-label { font-size:10px; font-weight:600; letter-spacing:0.15em; text-transform:uppercase; color:var(--muted); display:flex; align-items:center; height:28px; }
-  .detail-value { font-size:13px; color:var(--text); display:flex; align-items:center; height:28px; }
-  hr.divider { border:none; border-top:1px solid var(--border); margin:14px 0; }
-  .vehicle-block { background:var(--plate); border-radius:5px; padding:12px 14px; margin-bottom:14px; border:1px solid var(--border); }
-  .vehicle-block-eyebrow { font-size:10px; font-weight:600; letter-spacing:0.18em; text-transform:uppercase; color:var(--muted); margin-bottom:6px; }
-  .vehicle-block-id { font-family:'Barlow Condensed',sans-serif; font-size:18px; font-weight:900; text-transform:uppercase; color:var(--white); }
-  .vehicle-block-meta { font-size:12px; color:var(--soft); margin-top:3px; }
-
-  /* ── PAGE HEADER ── */
-  .page-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:8px; }
-  .page-title { font-family:'Barlow Condensed',sans-serif; font-size:20px; font-weight:900; text-transform:uppercase; letter-spacing:0.04em; color:var(--snow); }
-  .page-sub { font-size:11px; color:var(--muted); margin-top:2px; }
-
-  /* ── EMPTY ── */
-  .empty-state { text-align:center; padding:56px 24px; }
-  .empty-state h3 { font-family:'Barlow Condensed',sans-serif; font-size:17px; font-weight:700; text-transform:uppercase; letter-spacing:0.05em; color:var(--body); margin-bottom:6px; }
-  .empty-state p { font-size:12px; color:var(--muted); }
-  .loading-row { text-align:center; padding:40px; font-size:12px; color:var(--muted); }
-
-  /* ── HAMBURGER (always visible) ── */
-  .menu-btn {
-    display:flex; align-items:center; justify-content:center;
-    width:32px; height:32px; background:transparent;
-    border:1px solid var(--border); border-radius:4px;
-    color:var(--body); cursor:pointer; flex-shrink:0; margin-right:8px;
-  }
-  .menu-btn:hover { border-color:var(--rim); color:var(--text); }
-
-  /* ── SIDEBAR OVERLAY ── */
-  .sidebar-overlay {
-    display:none; position:fixed; inset:0;
-    background:rgba(0,0,0,0.65); z-index:199;
-  }
-
-  /* ── DESKTOP COLLAPSE ── */
-  @media (min-width:769px) {
-    .sidebar { overflow:hidden; transition:width 0.22s ease; }
-    .sidebar:not(.open) { width:0; border-right-width:0; }
-  }
-
-  @media (max-width:768px) {
-    .sidebar {
-      position:fixed; left:0; top:0; bottom:0; z-index:200;
-      transform:translateX(-100%); transition:transform 0.25s ease;
-    }
-    .sidebar.open {
-      transform:translateX(0);
-      box-shadow:8px 0 32px rgba(0,0,0,0.6);
-    }
-    .sidebar-overlay { display:block; }
-    body { overflow:auto; }
-    .main-content { padding:14px; }
-    .stats-5 { grid-template-columns:repeat(2,1fr); }
-  }
-
-  @media (max-width:900px) {
-    .stats-5 { grid-template-columns:repeat(3,1fr); }
-    .main-content { padding:14px; }
+  .sidebar-portal-tag {
+    margin-left:8px; font-size:9px; font-weight:700; letter-spacing:0.2em; text-transform:uppercase;
+    background:rgba(13,148,136,0.15); color:#2dd4bf; border:1px solid rgba(13,148,136,0.35);
+    border-radius:3px; padding:2px 6px;
   }
 `;
 
@@ -309,10 +90,38 @@ function LineInvoiceBadges({ linesInvoiceData }) {
 }
 
 // ─── UPDATE MODAL ─────────────────────────────────────────────
-function UpdateModal({ request, mechanic, companiesMap, linesInvoiceData, onClose, onUpdate }) {
+function UpdateModal({ request, mechanic, companiesMap, linesInvoiceData, onClose, onUpdate, onSilentRefresh }) {
   const [serviceLines,  setServiceLines]  = useState([]);
   const [loadingLines,  setLoadingLines]  = useState(true);
   const [vehicleStatus, setVehicleStatus] = useState(null);
+  const [mileage, setMileage] = useState(request.mileage != null ? String(request.mileage) : "");
+  const [savingMileage, setSavingMileage] = useState(false);
+  const [mileageSaved, setMileageSaved] = useState(false);
+  const [pendingNoteFiles, setPendingNoteFiles] = useState(0);
+  const [showUnsentWarning, setShowUnsentWarning] = useState(false);
+  const noteRef = useRef(null);
+
+  const guardedClose = () => {
+    if (pendingNoteFiles > 0) { setShowUnsentWarning(true); return; }
+    onClose();
+  };
+
+  const handleSendAndClose = async () => {
+    await noteRef.current?.submit();
+    onClose();
+  };
+
+  const handleMileageSave = async () => {
+    setSavingMileage(true);
+    const { error } = await supabase.from("service_requests").update({
+      mileage: mileage ? parseInt(mileage) : null,
+      updated_by_id:    mechanic.id,
+      updated_by_name:  mechanic.display_name || mechanic.name,
+      updated_by_email: mechanic.email,
+    }).eq("id", request.id);
+    setSavingMileage(false);
+    if (!error) { setMileageSaved(true); setTimeout(() => setMileageSaved(false), 1500); onUpdate(); }
+  };
 
   useEffect(() => {
     if (request.vehicle_registry_id) {
@@ -321,23 +130,23 @@ function UpdateModal({ request, mechanic, companiesMap, linesInvoiceData, onClos
     }
     setLoadingLines(true);
     supabase.from("service_lines")
-      .select("id, line_letter, service_name, notes, parts, is_completed")
+      .select("id, line_letter, service_name, notes, parts, is_completed, updated_by_name")
       .eq("sr_id", request.id)
       .order("line_letter")
       .then(({ data }) => { setServiceLines(data || []); setLoadingLines(false); });
   }, [request.id, request.vehicle_registry_id]);
 
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && guardedClose()}>
       <div className="modal">
         <div className="modal-head">
           <div>
-            <h3>SR-{request.request_number} — Service Request</h3>
+            <h3>{request.request_number} — Service Request</h3>
             <div className="modal-head-sub">
               {new Date(request.created_at).toLocaleDateString("en-US", { weekday:"short", month:"long", day:"numeric", year:"numeric" })}
             </div>
           </div>
-          <button className="modal-close" onClick={onClose}>×</button>
+          <button className="modal-close" onClick={guardedClose}>×</button>
         </div>
         <div className="modal-body">
           {/* Vehicle block */}
@@ -352,29 +161,19 @@ function UpdateModal({ request, mechanic, companiesMap, linesInvoiceData, onClos
             )}
           </div>
 
-          {vehicleStatus === "Not Road Worthy" && (
-            <div style={{ background:"var(--amber-dim)", border:"1px solid rgba(245,158,11,0.35)", borderRadius:6, padding:"10px 14px", marginBottom:14, display:"flex", alignItems:"center", gap:8, fontSize:13 }}>
-              <span style={{ color:"var(--amber)", fontWeight:700, fontSize:14 }}>⚠</span>
-              <span style={{ color:"var(--amber)", fontWeight:700 }}>Not Road Worthy</span>
-              <span style={{ color:"var(--body)" }}>— this vehicle is currently marked Not Road Worthy in the registry</span>
-            </div>
-          )}
-
           {/* Detail grid */}
           <div className="detail-grid">
             <span className="detail-label">DSP</span>
             <span className="detail-value">{companiesMap[request.company_id] || "—"}</span>
             <span className="detail-label">VIN</span>
             <span className="detail-value mono">{request.vin || "—"}</span>
-            <span className="detail-label">Urgency</span>
-            <span className="detail-value"><span className={`urg ${request.urgency}`}>{request.urgency?.toUpperCase()}</span></span>
-            <span className="detail-label">Status</span>
+            <span className="detail-label">Service Status</span>
             <span className="detail-value"><StatusBadge status={request.status} /></span>
             <span className="detail-label">Updated At</span>
             <span className="detail-value" style={{fontSize:12}}>
               {request.updated_at ? new Date(request.updated_at).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }) + " " + new Date(request.updated_at).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit" }) : "—"}
             </span>
-            <span className="detail-label">Invoice</span>
+            <span className="detail-label">Billing Status</span>
             <span className="detail-value"><LineInvoiceBadges linesInvoiceData={linesInvoiceData} /></span>
           </div>
 
@@ -390,6 +189,17 @@ function UpdateModal({ request, mechanic, companiesMap, linesInvoiceData, onClos
             </>
           )}
 
+          {/* Mileage */}
+          <div style={{ display:"flex", alignItems:"flex-end", gap:8, marginBottom:14 }}>
+            <div className="field" style={{ flex:"0 0 auto", marginBottom:0 }}>
+              <label>Mileage</label>
+              <input type="number" value={mileage} onChange={e => setMileage(e.target.value)} placeholder="Enter current mileage" style={{ width:180 }} />
+            </div>
+            <button className="btn btn-primary" style={{ height:34, fontSize:12, padding:"0 14px" }} onClick={handleMileageSave} disabled={savingMileage || String(request.mileage ?? "") === mileage}>
+              {savingMileage ? "Saving…" : mileageSaved ? "Saved ✓" : "Update"}
+            </button>
+          </div>
+
           <hr className="divider" />
 
           {/* Service Lines editor */}
@@ -404,19 +214,57 @@ function UpdateModal({ request, mechanic, companiesMap, linesInvoiceData, onClos
               srId={request.id}
               initialLines={serviceLines}
               mechanic={mechanic}
+              editorName={mechanic.display_name || mechanic.name}
               srStatus={request.status}
-              onSaved={() => onUpdate()}
-              onSubmitted={() => { onUpdate(); onClose(); }}
+              onSaved={() => onSilentRefresh ? onSilentRefresh() : onUpdate()}
+              onSubmitted={() => { onUpdate(); guardedClose(); }}
             />
+          )}
+
+          {/* Vehicle Status Toggle — required step */}
+          {request.vehicle_registry_id && (
+            <div style={{ display:"flex", flexWrap:"wrap", alignItems:"center", gap:10, marginBottom:14, padding:"10px 14px", background: vehicleStatus === "Not Road Worthy" ? "var(--amber-dim)" : vehicleStatus === "Road Worthy" ? "var(--green-dim)" : "var(--plate)", border:`1px solid ${vehicleStatus === "Not Road Worthy" ? "rgba(245,158,11,0.35)" : vehicleStatus === "Road Worthy" ? "rgba(16,185,129,0.22)" : "var(--border)"}`, borderRadius:6 }}>
+              <span style={{ fontSize:11, fontWeight:700, color:"var(--muted)", letterSpacing:"0.1em", textTransform:"uppercase", flexShrink:0 }}>Vehicle Status</span>
+              <div style={{ display:"flex", gap:0 }}>
+                {[["Road Worthy","var(--green)"],["Not Road Worthy","var(--amber)"]].map(([val,clr]) => (
+                  <button key={val} onClick={async () => {
+                    if (vehicleStatus === val) return;
+                    await supabase.from("vehicles").update({ status: val }).eq("id", request.vehicle_registry_id);
+                    await supabase.from("vehicle_status_logs").insert({
+                      vehicle_id: request.vehicle_registry_id, old_status: vehicleStatus, new_status: val,
+                      changed_by_id: mechanic.id, changed_by_name: mechanic.display_name || mechanic.name,
+                    });
+                    setVehicleStatus(val);
+                  }} style={{
+                    padding:"4px 12px", fontSize:11, fontWeight:700, fontFamily:"'Barlow Condensed',sans-serif", letterSpacing:"0.06em",
+                    border:"1px solid var(--border)", cursor: vehicleStatus === val ? "default" : "pointer", marginRight:-1,
+                    background: vehicleStatus === val ? clr : "var(--raised)", color: vehicleStatus === val ? "#000" : "var(--muted)",
+                  }}>{val}</button>
+                ))}
+              </div>
+              {!vehicleStatus && (
+                <span style={{ fontSize:10, color:"var(--red)", fontWeight:600 }}>Required — select vehicle status</span>
+              )}
+            </div>
           )}
 
           <hr className="divider" />
 
           {/* Notes log */}
-          <NotesLog srId={request.id} currentUserName={mechanic.display_name || mechanic.name} isAdmin={false} />
+          <NotesLog ref={noteRef} srId={request.id} currentUserName={mechanic.display_name || mechanic.name} isAdmin={false} onPendingFilesChange={setPendingNoteFiles} />
+
+          {showUnsentWarning && (
+            <div style={{ background:"rgba(245,158,11,0.08)", border:"1px solid rgba(245,158,11,0.3)", borderRadius:6, padding:"10px 14px", marginTop:10, fontSize:13, color:"var(--body)" }}>
+              <strong style={{ color:"var(--accent)" }}>You have {pendingNoteFiles} unsent photo(s).</strong> Send them before closing?
+              <div style={{ display:"flex", gap:8, marginTop:8 }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => setShowUnsentWarning(false)}>Go Back</button>
+                <button className="btn btn-primary btn-sm" onClick={handleSendAndClose}>Send and Close</button>
+              </div>
+            </div>
+          )}
 
           <div style={{ display:"flex", justifyContent:"flex-end", marginTop:14 }}>
-            <button className="btn btn-ghost" onClick={onClose}>Close</button>
+            <button className="btn btn-ghost" onClick={guardedClose}>Close</button>
           </div>
         </div>
       </div>
@@ -430,98 +278,70 @@ function NewRequestModal({ mechanic, onClose, onCreated }) {
   const [form, setForm] = useState({
     company_id:"", vehicle_id:"", vin:"",
     vehicle_make:"", vehicle_model:"", vehicle_year:"", mileage:"",
-    urgency:"medium", description:"",
+    description:"",
   });
   const [saving, setSaving]             = useState(false);
   const [error, setError]               = useState("");
-  const [scanning, setScanning]         = useState("");
-  const [scanResult, setScanResult]     = useState(null);
-  const [scanError, setScanError]       = useState("");
   const [duplicateWarning, setDuplicateWarning] = useState(null); // null=unchecked, []|[...]=checked
-  // registry state
-  const [lookingUp, setLookingUp]           = useState(false);
-  const [registryVehicle, setRegistryVehicle] = useState(null); // null=not looked up, false=not found, obj=found
-  const [saveToRegistry, setSaveToRegistry] = useState(false);
-  const fileRef = useRef(null);
+  const [registryVehicle, setRegistryVehicle] = useState(null);
+  const [companyVehicles, setCompanyVehicles] = useState([]);
 
   useEffect(() => {
     supabase.from("companies").select("id, name").order("name").then(({ data }) => setCompanies(data || []));
   }, []);
+
+  // Fetch vehicles when company changes
+  useEffect(() => {
+    if (!form.company_id) { setCompanyVehicles([]); return; }
+    supabase.from("vehicles").select("id, vehicle_id, vin, vehicle_make, vehicle_model, vehicle_year, license_plate, status")
+      .eq("company_id", form.company_id).neq("status", "Retired").order("vehicle_id")
+      .then(({ data }) => setCompanyVehicles(data || []));
+  }, [form.company_id]);
 
   const f = (k, v) => {
     setForm(p => ({ ...p, [k]: v }));
     if (["vin", "mileage"].includes(k)) setDuplicateWarning(null);
   };
 
-  const handleCompanyChange = (val) => { f("company_id", val); setRegistryVehicle(null); setSaveToRegistry(false); };
-  const handleVehicleIdChange = (val) => { f("vehicle_id", val); setRegistryVehicle(null); setSaveToRegistry(false); };
+  const handleCompanyChange = (val) => { f("company_id", val); setRegistryVehicle(null); setForm(p => ({ ...p, company_id: val, vehicle_id: "", vin: "", vehicle_make: "", vehicle_model: "", vehicle_year: "" })); setDuplicateWarning(null); };
 
-  const handleRegistryLookup = async () => {
-    if (!form.company_id || !form.vehicle_id.trim()) return;
-    setLookingUp(true);
-    const { data } = await supabase.from("vehicles")
-      .select("*")
-      .eq("company_id", form.company_id)
-      .eq("vehicle_id", form.vehicle_id.trim())
-      .maybeSingle();
-    setLookingUp(false);
-    if (data) {
-      setRegistryVehicle(data);
-      if (data.status !== "Retired") {
-        setForm(p => ({ ...p, vin: data.vin || "", vehicle_make: data.vehicle_make || "", vehicle_model: data.vehicle_model || "", vehicle_year: data.vehicle_year || "" }));
-      }
-    } else {
-      setRegistryVehicle(false);
-    }
-  };
-
-  const handleScanVin = async (e) => {
-    const file = e.target.files?.[0];
-    if (fileRef.current) fileRef.current.value = "";
-    if (!file) return;
-    setScanError(""); setScanResult(null); setScanning("reading");
-    try {
-      const base64 = await new Promise((res, rej) => {
-        const reader = new FileReader();
-        reader.onload = () => res(reader.result.split(",")[1]);
-        reader.onerror = rej;
-        reader.readAsDataURL(file);
-      });
-      const mediaType = file.type || "image/jpeg";
-      const resp = await fetch(`${SUPABASE_URL}/functions/v1/scan-vin-image`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ image: base64, mediaType }),
-      });
-      const { vin, error: vinErr } = await resp.json();
-      if (vinErr) throw new Error(vinErr);
-      setScanning("decoding");
-      const nhtsaResp = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/decodevin/${vin}?format=json`);
-      const nhtsaData = await nhtsaResp.json();
-      const results   = nhtsaData.Results || [];
-      const get = (label) => results.find(r => r.Variable === label)?.Value || "";
-      setScanResult({ vin, make: get("Make"), model: get("Model"), year: get("Model Year") });
-    } catch (err) {
-      setScanError(err.message || "Scan failed. Try a clearer photo.");
-    }
-    setScanning("");
-  };
-
-  const applyScannedVin = () => {
-    if (!scanResult) return;
-    setForm(p => ({ ...p, vin: scanResult.vin, vehicle_make: scanResult.make || p.vehicle_make, vehicle_model: scanResult.model || p.vehicle_model, vehicle_year: scanResult.year || p.vehicle_year }));
-    setScanResult(null);
+  const handleVehicleSelect = (vehicleId) => {
+    if (!vehicleId) { setRegistryVehicle(null); setForm(p => ({ ...p, vehicle_id: "", vin: "", vehicle_make: "", vehicle_model: "", vehicle_year: "" })); setDuplicateWarning(null); return; }
+    const veh = companyVehicles.find(v => v.id === vehicleId);
+    if (!veh) return;
+    setRegistryVehicle(veh);
+    setForm(p => ({
+      ...p,
+      vehicle_id: veh.vehicle_id,
+      vin: veh.vin || "",
+      vehicle_make: veh.vehicle_make || "",
+      vehicle_model: veh.vehicle_model || "",
+      vehicle_year: veh.vehicle_year || "",
+    }));
     setDuplicateWarning(null);
   };
 
   const handleSave = async () => {
-    if (!form.company_id || !form.vehicle_id || !form.urgency) {
-      setError("Company, Vehicle ID, and Urgency are required."); return;
-    }
-    if (registryVehicle && registryVehicle.status === "Retired") {
-      setError("This vehicle is retired and cannot be assigned to a new service request."); return;
+    if (!form.company_id || !registryVehicle) {
+      setError("Company and Vehicle are required. Select a vehicle from the dropdown."); return;
     }
     setSaving(true); setError("");
+
+    // Block mechanics from creating multiple active SRs for the same vehicle
+    {
+      const { data: activeSRs } = await supabase
+        .from("service_requests")
+        .select("id, request_number, status")
+        .eq("company_id", form.company_id)
+        .eq("vehicle_id", form.vehicle_id.trim())
+        .in("status", ["pending", "in_progress"]);
+      if (activeSRs && activeSRs.length > 0) {
+        const srList = activeSRs.map(sr => `${sr.request_number}`).join(", ");
+        setError(`This vehicle already has an active service request (${srList}). Please update the existing request instead of creating a new one.`);
+        setSaving(false);
+        return;
+      }
+    }
 
     // Duplicate check — only when VIN + mileage are both present
     if (form.vin && form.mileage && duplicateWarning === null) {
@@ -538,20 +358,7 @@ function NewRequestModal({ mechanic, onClose, onCreated }) {
       }
     }
 
-    let vehicleRegistryId = registryVehicle ? registryVehicle.id : null;
-
-    if (!registryVehicle && saveToRegistry && form.vehicle_id.trim()) {
-      const { data: newVeh, error: vErr } = await supabase.from("vehicles").insert({
-        company_id:    form.company_id,
-        vehicle_id:    form.vehicle_id.trim(),
-        vin:           form.vin || null,
-        vehicle_make:  form.vehicle_make || null,
-        vehicle_model: form.vehicle_model || null,
-        vehicle_year:  form.vehicle_year || null,
-      }).select("id").single();
-      if (vErr && vErr.code !== "23505") { setError("Registry save failed: " + vErr.message); setSaving(false); return; }
-      if (newVeh) vehicleRegistryId = newVeh.id;
-    }
+    const vehicleRegistryId = registryVehicle.id;
 
     const { error: err } = await supabase.from("service_requests").insert({
       client_id:           mechanic.id,
@@ -562,7 +369,6 @@ function NewRequestModal({ mechanic, onClose, onCreated }) {
       vehicle_model:       form.vehicle_model,
       vehicle_year:        form.vehicle_year,
       mileage:             form.mileage ? parseInt(form.mileage) : null,
-      urgency:             form.urgency,
       description:         form.description,
       status:              "pending",
       updated_by_id:       mechanic.id,
@@ -575,10 +381,8 @@ function NewRequestModal({ mechanic, onClose, onCreated }) {
     onCreated();
   };
 
-  const fromRegistry = registryVehicle && registryVehicle !== false && registryVehicle.status !== "Retired";
-
   return (
-    <div className="modal-overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+    <div className="modal-overlay" onMouseDown={e => e.target === e.currentTarget && onClose()}>
       <div className="modal" style={{ maxWidth:580 }}>
         <div className="modal-head">
           <div>
@@ -598,7 +402,7 @@ function NewRequestModal({ mechanic, onClose, onCreated }) {
               </div>
               {duplicateWarning.map(sr => (
                 <div key={sr.id} style={{ fontSize:12, color:"var(--soft)", marginBottom:2 }}>
-                  SR-{sr.request_number} — <span style={{ textTransform:"capitalize" }}>{sr.status.replace("_", " ")}</span>
+                  {sr.request_number} — <span style={{ textTransform:"capitalize" }}>{sr.status.replace("_", " ")}</span>
                 </div>
               ))}
               <div style={{ fontSize:12, color:"var(--muted)", marginTop:8 }}>
@@ -606,23 +410,6 @@ function NewRequestModal({ mechanic, onClose, onCreated }) {
               </div>
             </div>
           )}
-
-          {scanResult && (
-            <div style={{ background:"var(--plate)", border:"1px solid var(--accent-rim)", borderRadius:6, padding:"12px 14px", marginBottom:14 }}>
-              <div style={{ fontSize:10, fontWeight:700, letterSpacing:"0.18em", textTransform:"uppercase", color:"var(--accent)", marginBottom:8 }}>VIN Scan Result — Confirm</div>
-              <div style={{ display:"grid", gridTemplateColumns:"80px 1fr", rowGap:4, fontSize:13, marginBottom:10 }}>
-                <span style={{ color:"var(--muted)", fontSize:11 }}>VIN</span><span style={{ fontFamily:"monospace", color:"var(--white)" }}>{scanResult.vin}</span>
-                <span style={{ color:"var(--muted)", fontSize:11 }}>Make</span><span>{scanResult.make || "—"}</span>
-                <span style={{ color:"var(--muted)", fontSize:11 }}>Model</span><span>{scanResult.model || "—"}</span>
-                <span style={{ color:"var(--muted)", fontSize:11 }}>Year</span><span>{scanResult.year || "—"}</span>
-              </div>
-              <div style={{ display:"flex", gap:8 }}>
-                <button className="btn btn-primary btn-sm" onClick={applyScannedVin}>Apply to Form</button>
-                <button className="btn btn-ghost btn-sm" onClick={() => setScanResult(null)}>Dismiss</button>
-              </div>
-            </div>
-          )}
-          {scanError && <div className="error-box" style={{ marginBottom:10 }}>{scanError}</div>}
 
           <div className="field">
             <label>DSP *</label>
@@ -632,79 +419,45 @@ function NewRequestModal({ mechanic, onClose, onCreated }) {
             </select>
           </div>
 
-          {/* Vehicle ID + registry lookup */}
+          {/* Vehicle selection — dropdown only (mechanics cannot create vehicles) */}
           <div className="field">
-            <label>Vehicle ID / Unit # *</label>
-            <div style={{ display:"flex", gap:6 }}>
-              <input style={{ flex:1 }} value={form.vehicle_id} onChange={e => handleVehicleIdChange(e.target.value)} placeholder="UNIT-042" onKeyDown={e => e.key === "Enter" && handleRegistryLookup()} />
-              <button className="btn btn-ghost btn-sm" style={{ whiteSpace:"nowrap", flexShrink:0 }} onClick={handleRegistryLookup} disabled={lookingUp || !form.company_id || !form.vehicle_id.trim()}>
-                {lookingUp ? "Looking up…" : "Look up"}
-              </button>
-            </div>
+            <label>Vehicle *</label>
+            <select value={registryVehicle?.id || ""} onChange={e => handleVehicleSelect(e.target.value)} disabled={!form.company_id}>
+              <option value="">{!form.company_id ? "— Select a DSP first —" : companyVehicles.length === 0 ? "— No vehicles registered —" : "— Select Vehicle —"}</option>
+              {companyVehicles.map(v => (
+                <option key={v.id} value={v.id}>
+                  {v.vehicle_id}{v.vehicle_year || v.vehicle_make ? ` — ${[v.vehicle_year, v.vehicle_make, v.vehicle_model].filter(Boolean).join(" ")}` : ""}{v.status === "Not Road Worthy" ? " (NRW)" : ""}
+                </option>
+              ))}
+            </select>
           </div>
 
           {/* Registry match banner */}
-          {fromRegistry && registryVehicle.status === "Not Road Worthy" && (
+          {registryVehicle && registryVehicle.status === "Not Road Worthy" && (
             <div style={{ background:"var(--amber-dim)", border:"1px solid rgba(245,158,11,0.35)", borderRadius:6, padding:"8px 12px", marginBottom:12, display:"flex", alignItems:"center", gap:8, fontSize:12 }}>
               <span style={{ color:"var(--amber)", fontWeight:700 }}>⚠ Not Road Worthy</span>
               <span style={{ color:"var(--body)" }}>— vehicle is marked Not Road Worthy, proceed with caution</span>
-              <button style={{ marginLeft:"auto", background:"none", border:"none", color:"var(--muted)", cursor:"pointer", fontSize:12 }} onClick={() => setRegistryVehicle(null)}>Edit manually</button>
-            </div>
-          )}
-          {fromRegistry && registryVehicle.status !== "Not Road Worthy" && (
-            <div style={{ background:"var(--green-dim)", border:"1px solid rgba(16,185,129,0.3)", borderRadius:6, padding:"8px 12px", marginBottom:12, display:"flex", alignItems:"center", gap:8, fontSize:12 }}>
-              <span style={{ color:"var(--green)", fontWeight:700 }}>✓ Registry match</span>
-              <span style={{ color:"var(--body)" }}>— vehicle details auto-populated and locked</span>
-              <button style={{ marginLeft:"auto", background:"none", border:"none", color:"var(--muted)", cursor:"pointer", fontSize:12 }} onClick={() => setRegistryVehicle(null)}>Edit manually</button>
-            </div>
-          )}
-          {registryVehicle && registryVehicle !== false && registryVehicle.status === "Retired" && (
-            <div style={{ background:"var(--red-dim)", border:"1px solid rgba(239,68,68,0.3)", borderRadius:6, padding:"8px 12px", marginBottom:12, fontSize:12 }}>
-              <span style={{ color:"var(--red)", fontWeight:700 }}>✗ Vehicle Retired</span>
-              <span style={{ color:"var(--body)", marginLeft:8 }}>This vehicle is retired and cannot be assigned to a new service request.</span>
-            </div>
-          )}
-          {registryVehicle === false && (
-            <div style={{ background:"var(--raised)", border:"1px solid var(--border)", borderRadius:6, padding:"8px 12px", marginBottom:12, fontSize:12, color:"var(--muted)" }}>
-              Not found in registry — fill in details manually.
-              <label style={{ display:"inline-flex", alignItems:"center", gap:6, marginLeft:12, color:"var(--body)", cursor:"pointer" }}>
-                <input type="checkbox" checked={saveToRegistry} onChange={e => setSaveToRegistry(e.target.checked)} style={{ accentColor:"var(--accent)" }} />
-                Save to registry after submit
-              </label>
             </div>
           )}
 
           <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:10 }}>
             <div className="field">
               <label>VIN</label>
-              {fromRegistry ? (
-                <div style={{ padding:"8px 10px", background:"var(--plate)", borderRadius:6, fontSize:12, color:"var(--soft)", fontFamily:"monospace" }}>{form.vin || "—"}</div>
-              ) : (
-                <div style={{ display:"flex", gap:6 }}>
-                  <input style={{ flex:1 }} value={form.vin} onChange={e => f("vin", e.target.value)} placeholder="1HGBH41JXMN109186" />
-                  <input ref={fileRef} type="file" accept="image/*" capture="environment" style={{ display:"none" }} onChange={handleScanVin} />
-                  <button className="btn btn-ghost btn-sm" style={{ whiteSpace:"nowrap", flexShrink:0 }} onClick={() => fileRef.current?.click()} disabled={!!scanning}>
-                    {scanning === "reading" ? "Reading…" : scanning === "decoding" ? "Decoding…" : "📷 Scan VIN"}
-                  </button>
-                </div>
-              )}
+              <div style={{ padding:"8px 10px", background:"var(--plate)", borderRadius:6, fontSize:12, color:"var(--soft)", fontFamily:"monospace" }}>{form.vin || "—"}</div>
             </div>
             <div className="field">
               <label>Year</label>
-              {fromRegistry ? <div style={{ padding:"8px 10px", background:"var(--plate)", borderRadius:6, fontSize:12, color:"var(--soft)" }}>{form.vehicle_year || "—"}</div>
-                : <input value={form.vehicle_year} onChange={e => f("vehicle_year", e.target.value)} placeholder="2022" />}
+              <div style={{ padding:"8px 10px", background:"var(--plate)", borderRadius:6, fontSize:12, color:"var(--soft)" }}>{form.vehicle_year || "—"}</div>
             </div>
             <div className="field">
               <label>Make</label>
-              {fromRegistry ? <div style={{ padding:"8px 10px", background:"var(--plate)", borderRadius:6, fontSize:12, color:"var(--soft)" }}>{form.vehicle_make || "—"}</div>
-                : <input value={form.vehicle_make} onChange={e => f("vehicle_make", e.target.value)} placeholder="Ford" />}
+              <div style={{ padding:"8px 10px", background:"var(--plate)", borderRadius:6, fontSize:12, color:"var(--soft)" }}>{form.vehicle_make || "—"}</div>
             </div>
             <div className="field">
               <label>Model</label>
-              {fromRegistry ? <div style={{ padding:"8px 10px", background:"var(--plate)", borderRadius:6, fontSize:12, color:"var(--soft)" }}>{form.vehicle_model || "—"}</div>
-                : <input value={form.vehicle_model} onChange={e => f("vehicle_model", e.target.value)} placeholder="F-150" />}
+              <div style={{ padding:"8px 10px", background:"var(--plate)", borderRadius:6, fontSize:12, color:"var(--soft)" }}>{form.vehicle_model || "—"}</div>
             </div>
-            {fromRegistry && registryVehicle.license_plate && (
+            {registryVehicle?.license_plate && (
               <div className="field">
                 <label>License Plate</label>
                 <div style={{ padding:"8px 10px", background:"var(--plate)", borderRadius:6, fontSize:12, color:"var(--soft)" }}>{registryVehicle.license_plate}</div>
@@ -716,16 +469,8 @@ function NewRequestModal({ mechanic, onClose, onCreated }) {
             </div>
           </div>
           <div className="field">
-            <label>Urgency *</label>
-            <select value={form.urgency} onChange={e => f("urgency", e.target.value)}>
-              <option value="low">Low</option>
-              <option value="medium">Medium</option>
-              <option value="high">High</option>
-            </select>
-          </div>
-          <div className="field">
-            <label>Description</label>
-            <textarea value={form.description} onChange={e => f("description", e.target.value)} placeholder="Describe the issue…" />
+            <label>Mechanic Diagnostic</label>
+            <textarea value={form.description} onChange={e => f("description", e.target.value)} placeholder="Describe your diagnostic findings…" />
           </div>
           <div style={{ display:"flex", gap:8, justifyContent:"flex-end" }}>
             <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
@@ -733,6 +478,113 @@ function NewRequestModal({ mechanic, onClose, onCreated }) {
               {saving ? "Creating…" : duplicateWarning && duplicateWarning.length > 0 ? "Submit Anyway" : "Create Request"}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function truncateWords(str, max) {
+  if (!str || str.length <= max) return { short: str || "", full: str || "", truncated: false };
+  const cut = str.lastIndexOf(" ", max);
+  const short = (cut > 0 ? str.slice(0, cut) : str.slice(0, max)) + "…";
+  return { short, full: str, truncated: true };
+}
+
+// ─── MECHANIC SCAN RESULT (READ-ONLY) ────────────────────────
+function MechanicScanResult({ barcode, onClose }) {
+  const [status, setStatus]   = useState("loading");
+  const [matches, setMatches] = useState([]);
+  const [fuzzy, setFuzzy]     = useState([]);
+
+  useEffect(() => {
+    const lookup = async () => {
+      const { data: exact } = await supabase.from("inventory_items")
+        .select("id, name, sku, part_number, barcode, category, unit, quantity_on_hand, reorder_threshold, suppliers(name)")
+        .eq("barcode", barcode);
+      const found = exact || [];
+      if (found.length >= 1) { setMatches(found); setStatus("found"); return; }
+      // Fuzzy
+      if (barcode.length >= 4) {
+        const prefix = barcode.slice(0, -1);
+        const { data: similar } = await supabase.from("inventory_items")
+          .select("id, name, sku, part_number, barcode, category, unit, quantity_on_hand, reorder_threshold, suppliers(name)")
+          .like("barcode", `${prefix}%`)
+          .limit(5);
+        if (similar && similar.length > 0) { setFuzzy(similar); setStatus("fuzzy"); return; }
+      }
+      setStatus("no_match");
+    };
+    lookup();
+  }, [barcode]);
+
+  const CATS = { parts: "Parts", fluids: "Fluids", shop_supplies: "Shop Supplies", tools_equipment: "Tools & Equipment" };
+
+  const ItemRow = ({ item }) => {
+    return (
+      <div style={{ background: "var(--raised)", border: "1px solid var(--border)", borderRadius: 6, padding: "10px 14px", marginBottom: 8 }}>
+        <div style={{ fontSize: 13, color: "var(--white)", fontWeight: 600 }}>{item.name}</div>
+        <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>
+          {item.sku ? `SKU: ${item.sku}` : "No SKU"}
+          {item.part_number ? ` · Part #: ${item.part_number}` : ""}
+          {item.suppliers?.name ? ` · ${item.suppliers.name}` : ""}
+          {` · ${item.unit}`}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(7,11,17,0.82)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: 16 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: 10, padding: "24px 28px", width: "100%", maxWidth: 440 }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16 }}>
+          <div style={{ fontFamily: "'Barlow Condensed',sans-serif", fontSize: 16, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.12em", color: "var(--white)" }}>Scan Result</div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: "var(--muted)", cursor: "pointer", fontSize: 20, lineHeight: 1, padding: 4 }}>×</button>
+        </div>
+        <div style={{ fontSize: 12, color: "var(--body)", marginBottom: 16 }}>
+          Barcode: <strong style={{ color: "var(--white)", fontFamily: "'Barlow Condensed',sans-serif", letterSpacing: "0.08em" }}>{barcode}</strong>
+        </div>
+
+        {status === "loading" && <div style={{ fontSize: 12, color: "var(--muted)", padding: "20px 0", textAlign: "center" }}>Looking up barcode…</div>}
+
+        {status === "no_match" && (
+          <div>
+            <div style={{ fontSize: 13, color: "var(--accent)", marginBottom: 8 }}>No inventory item found for this barcode.</div>
+            <div style={{ fontSize: 12, color: "var(--dim)" }}>Contact an admin to add this item to inventory.</div>
+          </div>
+        )}
+
+        {status === "found" && (
+          <div>
+            {matches.every(m => !m.name) ? (
+              <div style={{ background: "var(--accent-dim)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 6, padding: "12px 16px" }}>
+                <div style={{ fontSize: 13, color: "var(--accent)", fontWeight: 600, marginBottom: 4 }}>Incomplete Item</div>
+                <div style={{ fontSize: 12, color: "var(--body)" }}>This barcode is in the inventory but the item appears to be incomplete. Contact an admin to finish adding this item.</div>
+              </div>
+            ) : (
+              <>
+                {matches.length > 1 && <div style={{ fontSize: 12, color: "var(--accent)", marginBottom: 8 }}>Multiple SKUs share this barcode:</div>}
+                {matches.map(m => m.name ? <ItemRow key={m.id} item={m} /> : (
+                  <div key={m.id} style={{ background: "var(--accent-dim)", border: "1px solid rgba(245,158,11,0.3)", borderRadius: 6, padding: "10px 14px", marginBottom: 8 }}>
+                    <div style={{ fontSize: 12, color: "var(--accent)" }}>Incomplete item (no name) — contact an admin</div>
+                    <div style={{ fontSize: 11, color: "var(--muted)", marginTop: 4 }}>{m.sku ? `SKU: ${m.sku}` : "No SKU"}{m.barcode ? ` · Barcode: ${m.barcode}` : ""}</div>
+                  </div>
+                ))}
+              </>
+            )}
+          </div>
+        )}
+
+        {status === "fuzzy" && (
+          <div>
+            <div style={{ fontSize: 13, color: "var(--accent)", marginBottom: 8 }}>No exact match. Similar barcode(s) found:</div>
+            {fuzzy.map(m => <ItemRow key={m.id} item={m} />)}
+          </div>
+        )}
+
+        <div style={{ display: "flex", justifyContent: "flex-end", marginTop: 16 }}>
+          <button className="btn btn-ghost" onClick={onClose}>Close</button>
         </div>
       </div>
     </div>
@@ -748,15 +600,18 @@ function RequestsView({ mechanic }) {
   const [search, setSearch]             = useState("");
   const [selected, setSelected]               = useState(null);
   const [showNewRequest, setShowNewRequest]   = useState(false);
+  const [showScanner, setShowScanner]         = useState(false);
+  const [scanResult, setScanResult]           = useState(null);
   const [linesInvoiceMap, setLinesInvoiceMap] = useState({}); // sr_id → [{line_letter, status}]
   const [srNamesMap, setSrNamesMap]           = useState({}); // sr_id → "Brake Job / Oil Change"
+  const [srServicesMap, setSrServicesMap]     = useState({}); // sr_id → {short, full, truncated}
 
-  const load = async () => {
-    setLoading(true);
+  // Silent refresh — updates data without showing loading state (used by auto-save)
+  const silentRefresh = async () => {
     const [{ data }, { data: cos }, { data: invs }] = await Promise.all([
-      supabase.from("service_requests").select("*").order("created_at", { ascending: false }),
+      supabase.from("service_requests").select("*").is("archived_at", null).order("created_at", { ascending: false }),
       supabase.from("companies").select("id, name"),
-      supabase.from("invoices").select("service_request_id, status, service_line_id, service_lines(line_letter, service_name)"),
+      supabase.from("invoices").select("service_request_id, status, service_line_id, service_lines(line_letter, service_name)").eq("is_incognito", false).is("archived_at", null),
     ]);
     const map = {};
     (cos || []).forEach(c => { map[c.id] = c.name; });
@@ -764,20 +619,73 @@ function RequestsView({ mechanic }) {
     setRequests(data || []);
     const imap = {};
     const nmap = {};
+    const smap = {};
     (invs || []).forEach(i => {
       if (!i.service_request_id) return;
       if (!imap[i.service_request_id]) imap[i.service_request_id] = [];
       imap[i.service_request_id].push({ line_letter: i.service_lines?.line_letter || "?", status: i.status });
-      const sn = i.service_lines?.service_name;
-      if (sn) {
+      const sl = i.service_lines;
+      if (sl?.service_name) {
         if (!nmap[i.service_request_id]) nmap[i.service_request_id] = new Set();
-        nmap[i.service_request_id].add(sn);
+        nmap[i.service_request_id].add(sl.service_name);
+      }
+      const text = (sl?.service_name || "").trim();
+      if (text) {
+        if (!smap[i.service_request_id]) smap[i.service_request_id] = [];
+        smap[i.service_request_id].push(`${sl.line_letter || "?"}: ${text}`);
       }
     });
     const namesMap = {};
     for (const [k, v] of Object.entries(nmap)) namesMap[k] = [...v].join(" / ");
+    const servMap = {};
+    for (const [id, parts] of Object.entries(smap)) {
+      const full = parts.join(" · ");
+      servMap[id] = truncateWords(full, 55);
+    }
     setLinesInvoiceMap(imap);
     setSrNamesMap(namesMap);
+    setSrServicesMap(servMap);
+  };
+
+  const load = async () => {
+    setLoading(true);
+    const [{ data }, { data: cos }, { data: invs }] = await Promise.all([
+      supabase.from("service_requests").select("*").is("archived_at", null).order("created_at", { ascending: false }),
+      supabase.from("companies").select("id, name"),
+      supabase.from("invoices").select("service_request_id, status, service_line_id, service_lines(line_letter, service_name)").eq("is_incognito", false).is("archived_at", null),
+    ]);
+    const map = {};
+    (cos || []).forEach(c => { map[c.id] = c.name; });
+    setCompaniesMap(map);
+    setRequests(data || []);
+    const imap = {};
+    const nmap = {};
+    const smap = {};
+    (invs || []).forEach(i => {
+      if (!i.service_request_id) return;
+      if (!imap[i.service_request_id]) imap[i.service_request_id] = [];
+      imap[i.service_request_id].push({ line_letter: i.service_lines?.line_letter || "?", status: i.status });
+      const sl = i.service_lines;
+      if (sl?.service_name) {
+        if (!nmap[i.service_request_id]) nmap[i.service_request_id] = new Set();
+        nmap[i.service_request_id].add(sl.service_name);
+      }
+      const text = (sl?.service_name || "").trim();
+      if (text) {
+        if (!smap[i.service_request_id]) smap[i.service_request_id] = [];
+        smap[i.service_request_id].push(`${sl.line_letter || "?"}: ${text}`);
+      }
+    });
+    const namesMap = {};
+    for (const [k, v] of Object.entries(nmap)) namesMap[k] = [...v].join(" / ");
+    const servMap = {};
+    for (const [id, parts] of Object.entries(smap)) {
+      const full = parts.join(" · ");
+      servMap[id] = truncateWords(full, 55);
+    }
+    setLinesInvoiceMap(imap);
+    setSrNamesMap(namesMap);
+    setSrServicesMap(servMap);
     setLoading(false);
   };
 
@@ -816,6 +724,7 @@ function RequestsView({ mechanic }) {
         </div>
         <div style={{ display:"flex", gap:8 }}>
           <button className="btn btn-ghost btn-sm" onClick={load}><IcoRefresh /></button>
+          <button className="btn btn-ghost btn-sm" onClick={() => setShowScanner(true)} style={{ display:"inline-flex", alignItems:"center", gap:4 }}><IcoBarcode /> Scan Part</button>
           <button className="btn btn-primary btn-sm" onClick={() => setShowNewRequest(true)}><IcoPlus /> New Request</button>
         </div>
       </div>
@@ -850,16 +759,11 @@ function RequestsView({ mechanic }) {
             <thead>
               <tr>
                 <th>Date</th>
-                <th>Last Updated</th>
                 <th>SR #</th>
                 <th>Company</th>
                 <th>Vehicle</th>
-                <th>VIN</th>
                 <th>Service</th>
-                <th>Urgency</th>
-                <th>Status</th>
-                <th>Invoice</th>
-                <th>Updated By</th>
+                <th>Service Status</th>
                 <th></th>
               </tr>
             </thead>
@@ -869,12 +773,9 @@ function RequestsView({ mechanic }) {
                   <td style={{ color:"var(--soft)", whiteSpace:"nowrap", fontSize:11 }}>
                     {new Date(r.created_at).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" })}
                   </td>
-                  <td style={{ color:"var(--soft)", whiteSpace:"nowrap", fontSize:11 }}>
-                    {r.updated_at ? new Date(r.updated_at).toLocaleDateString("en-US", { month:"short", day:"numeric", year:"numeric" }) + " " + new Date(r.updated_at).toLocaleTimeString("en-US", { hour:"numeric", minute:"2-digit" }) : "—"}
-                  </td>
                   <td>
                     <span style={{ fontFamily:"'Barlow Condensed',sans-serif", fontWeight:700, fontSize:13, color:"var(--accent)", letterSpacing:"0.05em" }}>
-                      SR-{r.request_number}
+                      {r.request_number}
                     </span>
                   </td>
                   <td style={{ fontWeight:600, fontSize:13 }}>{companiesMap[r.company_id] || "—"}</td>
@@ -886,19 +787,8 @@ function RequestsView({ mechanic }) {
                       </span>
                     )}
                   </td>
-                  <td className="mono">{r.vin || "—"}</td>
-                  <td style={{ fontSize:13, color:"var(--body)" }}>{srNamesMap[r.id] || r.service_type || <span style={{ color:"var(--dim)" }}>—</span>}</td>
-                  <td><span className={`urg ${r.urgency}`}>{r.urgency}</span></td>
+                  <td><SvcPreviewCell svc={srServicesMap[r.id]} /></td>
                   <td><StatusBadge status={r.status} /></td>
-                  <td><LineInvoiceBadges linesInvoiceData={linesInvoiceMap[r.id]} /></td>
-                  <td>
-                    {r.updated_by_name ? (
-                      <div>
-                        <div style={{ fontSize:12, fontWeight:600 }}>{r.updated_by_name}</div>
-                        <div style={{ fontSize:10, color:"var(--muted)" }}>{r.updated_by_email}</div>
-                      </div>
-                    ) : <span style={{ color:"var(--dim)", fontSize:12 }}>—</span>}
-                  </td>
                   <td>
                     <button className="btn btn-ghost btn-sm" onClick={e => { e.stopPropagation(); setSelected(r); }}>
                       Update <IcoChevron />
@@ -915,7 +805,8 @@ function RequestsView({ mechanic }) {
         <UpdateModal request={selected} mechanic={mechanic} companiesMap={companiesMap}
           linesInvoiceData={linesInvoiceMap[selected.id]}
           onClose={() => setSelected(null)}
-          onUpdate={() => load()} />
+          onUpdate={() => load()}
+          onSilentRefresh={() => silentRefresh()} />
       )}
 
       {showNewRequest && (
@@ -923,6 +814,19 @@ function RequestsView({ mechanic }) {
           mechanic={mechanic}
           onClose={() => setShowNewRequest(false)}
           onCreated={() => { setShowNewRequest(false); load(); }} />
+      )}
+
+      {showScanner && (
+        <BarcodeScanner
+          onScan={(code) => { setShowScanner(false); setScanResult(code); }}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
+      {scanResult && (
+        <MechanicScanResult
+          barcode={scanResult}
+          onClose={() => setScanResult(null)}
+        />
       )}
     </div>
   );
@@ -939,14 +843,20 @@ function MechanicAuth({ onLogin }) {
     setLoading(true); setError("");
     const { data, error: err } = await supabase.auth.signInWithPassword({ email, password });
     setLoading(false);
-    if (err || !data?.session) { setError(err?.message || "Invalid credentials."); return; }
+    if (err || !data?.session) {
+      setError(err?.message || "Invalid credentials.");
+      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "mechanic" } }).catch(() => {});
+      return;
+    }
     const { data: mechData, error: mechErr } = await supabase
       .from("mechanics").select("id, email, name, display_name").eq("id", data.session.user.id).single();
     if (mechErr || !mechData) {
+      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "mechanic", reason: "not_mechanic" } }).catch(() => {});
       await supabase.auth.signOut();
       setError("Access denied. This account does not have mechanic privileges.");
       return;
     }
+    supabase.rpc("log_auth_event", { p_action: "login_success", p_status: "success", p_metadata: { portal: "mechanic" } }).catch(() => {});
     onLogin(data.session, mechData);
   };
 
@@ -978,23 +888,50 @@ function MechanicAuth({ onLogin }) {
 
 // ─── APP ROOT ─────────────────────────────────────────────────
 export default function MechanicApp() {
+  const navigate = useNavigate();
   const [session, setSession]         = useState(null);
   const [mechanic, setMechanic]       = useState(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(() => window.innerWidth > 768);
+  const [loading, setLoading]         = useState(true);
+  const [refreshKey, setRefreshKey]   = useState(0);
+  const [hasUpdates, setHasUpdates]   = useState(false);
 
-  const handleLogin = (sess, mech) => { setSession(sess); setMechanic(mech); };
+  useEffect(() => {
+    supabase.auth.getSession().then(async ({ data: { session: sess } }) => {
+      if (!sess) { navigate("/"); return; }
+      const { data: mechRow } = await supabase.from("mechanics")
+        .select("id, email, name, display_name").eq("id", sess.user.id).maybeSingle();
+      if (!mechRow) { navigate("/"); return; }
+      setSession(sess);
+      setMechanic(mechRow);
+      setLoading(false);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (!session) return;
+    const mark = () => setHasUpdates(true);
+    const channel = supabase.channel("mechanic-realtime")
+      .on("postgres_changes", { event: "*", schema: "public", table: "service_requests" }, mark)
+      .on("postgres_changes", { event: "*", schema: "public", table: "service_lines" }, mark)
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [session]);
+
+  const applyUpdates = () => { setHasUpdates(false); setRefreshKey(k => k + 1); };
+
   const handleLogout = async () => {
+    supabase.rpc("log_auth_event", { p_action: "logout", p_status: "success", p_metadata: { portal: "mechanic" } }).catch(() => {});
     await supabase.auth.signOut();
-    setSession(null); setMechanic(null);
+    window.location.href = "/";
   };
+
+  if (loading) return <style>{css}</style>;
 
   return (
     <>
       <style>{css}</style>
-      {!session ? (
-        <MechanicAuth onLogin={handleLogin} />
-      ) : (
-        <div className="app-shell">
+      <div className="app-shell">
           {/* SIDEBAR OVERLAY (mobile) */}
           {sidebarOpen && <div className="sidebar-overlay" onClick={() => setSidebarOpen(false)} />}
 
@@ -1020,13 +957,17 @@ export default function MechanicApp() {
             <div className="main-header">
               <button className="menu-btn" onClick={() => setSidebarOpen(o => !o)}><IcoMenu /></button>
               <div className="main-header-title">Service Requests</div>
+              {hasUpdates && (
+                <button className="btn btn-sm" onClick={applyUpdates} style={{ background:"var(--blue-dim)", color:"#60a5fa", border:"1px solid rgba(59,130,246,0.3)" }}>
+                  New updates — click to refresh
+                </button>
+              )}
             </div>
             <div className="main-content">
-              <RequestsView mechanic={mechanic} />
+              <RequestsView key={refreshKey} mechanic={mechanic} />
             </div>
           </main>
-        </div>
-      )}
+      </div>
     </>
   );
 }

@@ -1,4 +1,36 @@
+import { useState } from "react";
 import { STATUS_LABELS } from "../lib/constants";
+
+export function SvcPreviewCell({ svc }) {
+  const [tipPos, setTipPos] = useState(null);
+  if (!svc?.full) return <span style={{ color:"var(--dim)", fontSize:12 }}>—</span>;
+  return (
+    <>
+      <span
+        style={{ fontSize:12, color:"var(--body)" }}
+        onMouseEnter={e => {
+          if (!svc.truncated) return;
+          const r = e.currentTarget.getBoundingClientRect();
+          setTipPos({ x: r.left, y: r.bottom + 4 });
+        }}
+        onMouseLeave={() => setTipPos(null)}
+      >
+        {svc.short}
+      </span>
+      {tipPos && (
+        <div style={{
+          position:"fixed", left:tipPos.x, top:tipPos.y, zIndex:9999,
+          background:"var(--surface)", border:"1px solid var(--border)", borderRadius:5,
+          padding:"8px 10px", fontSize:12, color:"var(--body)", whiteSpace:"normal",
+          wordWrap:"break-word", minWidth:200, maxWidth:300, lineHeight:1.5,
+          boxShadow:"0 4px 12px rgba(0,0,0,0.3)", pointerEvents:"none",
+        }}>
+          {svc.full}
+        </div>
+      )}
+    </>
+  );
+}
 
 export function StatusBadge({ status }) {
   return (
@@ -15,8 +47,9 @@ export function InvoiceBillingBadge({ status, label }) {
     submitted:     { color:"#fbbf24",  bg:"rgba(245,158,11,0.12)",  label:"Submitted"  },
     approved:      { color:"#34d399",  bg:"rgba(16,185,129,0.12)",  label:"Approved"   },
     rejected:      { color:"#f87171",  bg:"rgba(239,68,68,0.12)",   label:"Rejected"   },
-    client_billed: { color:"#60a5fa",  bg:"rgba(59,130,246,0.12)",  label:"Billed"     },
-    paid:          { color:"#6ee7b7",  bg:"rgba(16,185,129,0.22)",  label:"Paid"       },
+    revise:        { color:"#fb923c",  bg:"rgba(249,115,22,0.12)",  label:"Revise"     },
+    client_billed:            { color:"#60a5fa",  bg:"rgba(59,130,246,0.12)",  label:"Billed"            },
+    paid:                     { color:"#6ee7b7",  bg:"rgba(16,185,129,0.22)",  label:"Paid"              },
   };
   const s = map[status];
   if (!s) return (
@@ -28,8 +61,8 @@ export function InvoiceBillingBadge({ status, label }) {
   const displayLabel = label ? `${label} · ${s.label}` : s.label;
   return (
     <span style={{
-      display:"inline-flex", alignItems:"center", gap:5, padding:"0 7px",
-      height:18, borderRadius:3, fontFamily:"'Barlow Condensed',sans-serif",
+      display:"inline-flex", alignItems:"center", gap:5, padding:"2px 7px",
+      minHeight:18, borderRadius:3, fontFamily:"'Barlow Condensed',sans-serif",
       fontSize:10, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase",
       background:s.bg, color:s.color, border:`1px solid ${s.color}44`,
     }}>
@@ -68,8 +101,8 @@ export function SRStatusBadge({ status }) {
   const s = map[status] || { color:"var(--muted)", bg:"rgba(255,255,255,0.05)" };
   return (
     <span style={{
-      display:"inline-flex", alignItems:"center", gap:5, padding:"0 7px",
-      height:18, borderRadius:3, fontFamily:"'Barlow Condensed',sans-serif",
+      display:"inline-flex", alignItems:"center", gap:5, padding:"2px 7px",
+      minHeight:18, borderRadius:3, fontFamily:"'Barlow Condensed',sans-serif",
       fontSize:10, fontWeight:700, letterSpacing:"0.12em", textTransform:"uppercase",
       background:s.bg, color:s.color, border:`1px solid ${s.color}44`,
     }}>

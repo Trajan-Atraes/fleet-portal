@@ -2,12 +2,10 @@ import { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { SUPABASE_URL } from "../lib/supabase";
 import { UserTypeBadge } from "../components/UserTypeBadge";
-
-const IcoRefresh = () => <svg width="12" height="12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 11-2.12-9.36L23 10"/></svg>;
-const IcoPlus    = () => <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>;
+import { IcoRefresh, IcoPlus } from "../components/Icons";
 
 // ─── USER MANAGEMENT ──────────────────────────────────────────
-export default function UserManagement({ onAdminDisplayNameChange }) {
+export default function UserManagement({ onAdminDisplayNameChange, isSuper }) {
   const [mechanics, setMechanics]           = useState([]);
   const [admins, setAdmins]                 = useState([]);
   const [companyUsers, setCompanyUsers]     = useState([]);
@@ -29,9 +27,14 @@ export default function UserManagement({ onAdminDisplayNameChange }) {
   const [editDisplayName, setEditDisplayName]     = useState("");
   const [editAssignCompanyId, setEditAssignCompanyId] = useState("");
 
+  const [resetPwModal, setResetPwModal] = useState(null); // { user_id, label }
+  const [resetPw, setResetPw]           = useState("");
+  const [resetPwConfirm, setResetPwConfirm] = useState("");
+
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState("");
   const [success, setSuccess] = useState("");
+  const [confirmRemove, setConfirmRemove] = useState(null); // { type, id, label, companyId? }
 
   const [amSearch,   setAmSearch]   = useState("");
   const [mechSearch, setMechSearch] = useState("");
@@ -96,8 +99,10 @@ export default function UserManagement({ onAdminDisplayNameChange }) {
   };
 
   const handleRemoveMechanic = async (id, name) => {
-    if (!window.confirm(`Remove ${name} as a mechanic? This will revoke their portal access.`)) return;
-    setError(""); setSuccess("");
+    if (!confirmRemove || confirmRemove.id !== id || confirmRemove.type !== "mechanic") {
+      setConfirmRemove({ type:"mechanic", id, label:name }); return;
+    }
+    setConfirmRemove(null); setError(""); setSuccess("");
     const { error: err } = await supabase.from("mechanics").delete().eq("id", id);
     if (err) { setError(err.message); return; }
     setSuccess(`${name} removed.`);
@@ -140,8 +145,10 @@ export default function UserManagement({ onAdminDisplayNameChange }) {
   };
 
   const handleRemoveAccountManager = async (id, label) => {
-    if (!window.confirm(`Remove ${label} as an Account Manager? This will revoke their portal access.`)) return;
-    setError(""); setSuccess("");
+    if (!confirmRemove || confirmRemove.id !== id || confirmRemove.type !== "am") {
+      setConfirmRemove({ type:"am", id, label }); return;
+    }
+    setConfirmRemove(null); setError(""); setSuccess("");
     const { error: err } = await supabase.from("account_managers").delete().eq("id", id);
     if (err) { setError(err.message); return; }
     setSuccess(`${label} removed.`);
@@ -201,8 +208,10 @@ export default function UserManagement({ onAdminDisplayNameChange }) {
   };
 
   const handleRemoveCompanyUser = async (userId, companyId) => {
-    if (!window.confirm("Remove this user from their company? This will revoke their client portal access.")) return;
-    setError(""); setSuccess("");
+    if (!confirmRemove || confirmRemove.id !== userId || confirmRemove.type !== "company_user") {
+      setConfirmRemove({ type:"company_user", id:userId, label:"this user", companyId }); return;
+    }
+    setConfirmRemove(null); setError(""); setSuccess("");
     const { error: err } = await supabase.from("company_users").delete().eq("user_id", userId).eq("company_id", companyId);
     if (err) { setError(err.message); return; }
     setSuccess("User removed.");
@@ -223,6 +232,28 @@ export default function UserManagement({ onAdminDisplayNameChange }) {
     setEditDisplayName("");
     setSuccess("Display name updated.");
     load();
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPw || resetPw.length < 6) { setError("Password must be at least 6 characters."); return; }
+    if (resetPw !== resetPwConfirm) { setError("Passwords do not match."); return; }
+    setSaving(true); setError(""); setSuccess("");
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/reset-user-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${session.access_token}` },
+        body: JSON.stringify({ user_id: resetPwModal.user_id, new_password: resetPw }),
+      });
+      const result = await res.json();
+      if (result.error) { setError(result.error); return; }
+      setSuccess(`Password updated for ${resetPwModal.label}.`);
+      setResetPwModal(null); setResetPw(""); setResetPwConfirm("");
+    } catch (e) {
+      setError(e.message || "Failed to reset password.");
+    } finally {
+      setSaving(false);
+    }
   };
 
   const openEdit = (type, record) => {
@@ -306,7 +337,11 @@ export default function UserManagement({ onAdminDisplayNameChange }) {
                           <td style={{ textAlign:"right" }}>
                             <div style={{ display:"flex", gap:6, justifyContent:"flex-end" }}>
                               <button className="btn btn-ghost btn-sm" onClick={() => openEdit("account_manager", am)}>Edit</button>
-                              <button className="btn btn-danger btn-sm" onClick={() => handleRemoveAccountManager(am.id, am.display_name || am.email)}>Remove</button>
+                              {isSuper && <button className="btn btn-ghost btn-sm" onClick={() => { setResetPwModal({ user_id: am.id, label: am.display_name || am.email }); setResetPw(""); setResetPwConfirm(""); setError(""); }}>Reset Password</button>}
+                              {confirmRemove?.type === "am" && confirmRemove.id === am.id
+                                ? <><button className="btn btn-ghost btn-sm" onClick={() => setConfirmRemove(null)}>Cancel</button><button className="btn btn-sm" style={{ background:"#ef4444", color:"#fff" }} onClick={() => handleRemoveAccountManager(am.id, am.display_name || am.email)}>Confirm</button></>
+                                : <button className="btn btn-danger btn-sm" onClick={() => handleRemoveAccountManager(am.id, am.display_name || am.email)}>Remove</button>
+                              }
                             </div>
                           </td>
                         </tr>
@@ -349,7 +384,11 @@ export default function UserManagement({ onAdminDisplayNameChange }) {
                         <td style={{ textAlign:"right" }}>
                           <div style={{ display:"flex", gap:6, justifyContent:"flex-end" }}>
                             <button className="btn btn-ghost btn-sm" onClick={() => openEdit("mechanic", m)}>Edit</button>
-                            <button className="btn btn-danger btn-sm" onClick={() => handleRemoveMechanic(m.id, m.name)}>Remove</button>
+                            {isSuper && <button className="btn btn-ghost btn-sm" onClick={() => { setResetPwModal({ user_id: m.id, label: m.display_name || m.name }); setResetPw(""); setResetPwConfirm(""); setError(""); }}>Reset Password</button>}
+                            {confirmRemove?.type === "mechanic" && confirmRemove.id === m.id
+                              ? <><button className="btn btn-ghost btn-sm" onClick={() => setConfirmRemove(null)}>Cancel</button><button className="btn btn-sm" style={{ background:"#ef4444", color:"#fff" }} onClick={() => handleRemoveMechanic(m.id, m.name)}>Confirm</button></>
+                              : <button className="btn btn-danger btn-sm" onClick={() => handleRemoveMechanic(m.id, m.name)}>Remove</button>
+                            }
                           </div>
                         </td>
                       </tr>
@@ -391,7 +430,11 @@ export default function UserManagement({ onAdminDisplayNameChange }) {
                         <td style={{ textAlign:"right" }}>
                           <div style={{ display:"flex", gap:6, justifyContent:"flex-end" }}>
                             <button className="btn btn-ghost btn-sm" onClick={() => openEdit("company_user", u)}>Edit</button>
-                            <button className="btn btn-danger btn-sm" onClick={() => handleRemoveCompanyUser(u.user_id, u.company_id)}>Remove</button>
+                            {isSuper && <button className="btn btn-ghost btn-sm" onClick={() => { setResetPwModal({ user_id: u.user_id, label: u.display_name || u.user_id }); setResetPw(""); setResetPwConfirm(""); setError(""); }}>Reset Password</button>}
+                            {confirmRemove?.type === "company_user" && confirmRemove.id === u.user_id
+                              ? <><button className="btn btn-ghost btn-sm" onClick={() => setConfirmRemove(null)}>Cancel</button><button className="btn btn-sm" style={{ background:"#ef4444", color:"#fff" }} onClick={() => handleRemoveCompanyUser(u.user_id, u.company_id)}>Confirm</button></>
+                              : <button className="btn btn-danger btn-sm" onClick={() => handleRemoveCompanyUser(u.user_id, u.company_id)}>Remove</button>
+                            }
                           </div>
                         </td>
                       </tr>
@@ -407,7 +450,7 @@ export default function UserManagement({ onAdminDisplayNameChange }) {
             <SectionHeader label="Admins" count={adminSearch ? `${filteredAdmins.length}/${admins.length}` : admins.length}>
               <input value={adminSearch} onChange={e => setAdminSearch(e.target.value)} placeholder="Search…" style={{ padding:"4px 10px", fontSize:12, borderRadius:6, border:"1px solid var(--border)", background:"var(--raised)", color:"var(--text)", width:160, outline:"none" }} />
             </SectionHeader>
-            <div style={{ fontSize:11, color:"var(--muted)", marginBottom:8 }}>Admin accounts are managed directly via SQL — see CLAUDE.md. Display name is editable here.</div>
+            <div style={{ fontSize:11, color:"var(--muted)", marginBottom:8 }}>Admin accounts are managed directly via SQL — sees systems administrator. Display name is editable here.</div>
             {admins.length === 0 ? (
               <div className="empty-state"><p>No admins found.</p></div>
             ) : filteredAdmins.length === 0 ? (
@@ -423,11 +466,14 @@ export default function UserManagement({ onAdminDisplayNameChange }) {
                           <div style={{ fontWeight:600, fontSize:13 }}>{a.display_name || a.email}</div>
                           {a.display_name && <div style={{ fontSize:11, color:"var(--muted)", marginTop:1 }}>{a.email}</div>}
                         </td>
-                        <td><span style={{ display:"inline-block", padding:"2px 8px", borderRadius:4, fontSize:10, fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", background:"rgba(245,158,11,0.12)", color:"var(--accent)", border:"1px solid rgba(245,158,11,0.22)" }}>Admin</span></td>
+                        <td><span style={{ display:"inline-block", padding:"2px 8px", borderRadius:4, fontSize:10, fontWeight:700, letterSpacing:"0.08em", textTransform:"uppercase", background:"rgba(127,29,29,0.15)", color:"#fca5a5", border:"1px solid rgba(127,29,29,0.35)" }}>Admin</span></td>
                         <td style={{ fontSize:12, color:"var(--muted)" }}>—</td>
                         <td style={{ color:"var(--muted)", fontSize:11, whiteSpace:"nowrap" }}>{fmt(a.created_at)}</td>
                         <td style={{ textAlign:"right" }}>
-                          <button className="btn btn-ghost btn-sm" onClick={() => openEdit("admin", a)}>Edit</button>
+                          <div style={{ display:"flex", gap:6, justifyContent:"flex-end" }}>
+                            <button className="btn btn-ghost btn-sm" onClick={() => openEdit("admin", a)}>Edit</button>
+                            {isSuper && <button className="btn btn-ghost btn-sm" onClick={() => { setResetPwModal({ user_id: a.id, label: a.display_name || a.email }); setResetPw(""); setResetPwConfirm(""); setError(""); }}>Reset Password</button>}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -515,6 +561,39 @@ export default function UserManagement({ onAdminDisplayNameChange }) {
               <div style={{ display:"flex", justifyContent:"flex-end", gap:8, marginTop:4 }}>
                 <button className="btn btn-ghost btn-sm" onClick={() => setAddModal(null)}>Cancel</button>
                 <button className="btn btn-primary btn-sm" onClick={handleCreateCompanyUser} disabled={saving}>{saving ? "Creating…" : "Create User"}</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── RESET PASSWORD MODAL ── */}
+      {resetPwModal && (
+        <div className="modal-overlay" onClick={() => setResetPwModal(null)}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-head">
+              <div>
+                <h3>Reset Password</h3>
+                <div className="modal-head-sub">{resetPwModal.label}</div>
+              </div>
+              <button className="modal-close" onClick={() => setResetPwModal(null)}>×</button>
+            </div>
+            <div className="modal-body">
+              {error && <div className="error-box" style={{ marginBottom:12 }}>{error}</div>}
+              <div className="field">
+                <label>New Password *</label>
+                <input type="password" value={resetPw} onChange={e => setResetPw(e.target.value)} placeholder="Minimum 6 characters" autoFocus />
+              </div>
+              <div className="field">
+                <label>Confirm Password *</label>
+                <input type="password" value={resetPwConfirm} onChange={e => setResetPwConfirm(e.target.value)} placeholder="Re-enter password"
+                  onKeyDown={e => { if (e.key === "Enter") handleResetPassword(); }} />
+              </div>
+              <div style={{ display:"flex", justifyContent:"flex-end", gap:8, marginTop:4 }}>
+                <button className="btn btn-ghost btn-sm" onClick={() => setResetPwModal(null)}>Cancel</button>
+                <button className="btn btn-primary btn-sm" onClick={handleResetPassword} disabled={saving || !resetPw || !resetPwConfirm}>
+                  {saving ? "Resetting…" : "Reset Password"}
+                </button>
               </div>
             </div>
           </div>
