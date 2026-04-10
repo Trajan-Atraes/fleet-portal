@@ -56,10 +56,10 @@ function BillingAuth({ onLogin }) {
     setLoading(false);
     if (err || !data?.session) {
       setError(err?.message || "Invalid credentials.");
-      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "billing" } }).catch(() => {});
+      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "billing" } }).then(null, () => {});
       return;
     }
-    supabase.rpc("log_auth_event", { p_action: "login_success", p_status: "success", p_metadata: { portal: "billing" } }).catch(() => {});
+    supabase.rpc("log_auth_event", { p_action: "login_success", p_status: "success", p_metadata: { portal: "billing" } }).then(null, () => {});
     // In production: check billing_users or admins table
     onLogin(data.session);
   };
@@ -236,7 +236,7 @@ export default function BillingApp() {
   }, []);
 
   const handleLogout = async () => {
-    supabase.rpc("log_auth_event", { p_action: "logout", p_status: "success", p_metadata: { portal: "billing" } }).catch(() => {});
+    supabase.rpc("log_auth_event", { p_action: "logout", p_status: "success", p_metadata: { portal: "billing" } }).then(null, () => {});
     await supabase.auth.signOut();
     window.location.href = "/";
   };

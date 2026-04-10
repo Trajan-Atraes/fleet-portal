@@ -165,10 +165,10 @@ function AuthScreen({ onLogin }) {
     setLoading(false);
     if (err || !data?.session) {
       setError(err?.message || "Invalid email or password.");
-      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "client" } }).catch(() => {});
+      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "client" } }).then(null, () => {});
       return;
     }
-    supabase.rpc("log_auth_event", { p_action: "login_success", p_status: "success", p_metadata: { portal: "client" } }).catch(() => {});
+    supabase.rpc("log_auth_event", { p_action: "login_success", p_status: "success", p_metadata: { portal: "client" } }).then(null, () => {});
     onLogin(data.session);
   };
 
@@ -1713,7 +1713,7 @@ export default function App() {
   }, []);
 
   const handleLogout = async () => {
-    supabase.rpc("log_auth_event", { p_action: "logout", p_status: "success", p_metadata: { portal: "client" } }).catch(() => {});
+    supabase.rpc("log_auth_event", { p_action: "logout", p_status: "success", p_metadata: { portal: "client" } }).then(null, () => {});
     await supabase.auth.signOut();
     window.location.href = "/";
   };

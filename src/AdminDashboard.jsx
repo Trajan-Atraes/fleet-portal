@@ -66,17 +66,17 @@ function AdminAuth({ onLogin }) {
     setLoading(false);
     if (err || !data?.session) {
       setError(err?.message || "Invalid credentials.");
-      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "admin" } }).catch(() => {});
+      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "admin" } }).then(null, () => {});
       return;
     }
     const { data: adminData, error: adminErr } = await supabase.from("admins").select("id, display_name").eq("id", data.session.user.id).single();
     if (adminErr || !adminData) {
-      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "admin", reason: "not_admin" } }).catch(() => {});
+      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "admin", reason: "not_admin" } }).then(null, () => {});
       await supabase.auth.signOut();
       setError("Access denied. This account does not have admin privileges.");
       return;
     }
-    supabase.rpc("log_auth_event", { p_action: "login_success", p_status: "success", p_metadata: { portal: "admin" } }).catch(() => {});
+    supabase.rpc("log_auth_event", { p_action: "login_success", p_status: "success", p_metadata: { portal: "admin" } }).then(null, () => {});
     onLogin(data.session, adminData.display_name || null);
   };
 
@@ -216,7 +216,7 @@ export default function AdminApp() {
   };
 
   const handleLogout = async () => {
-    supabase.rpc("log_auth_event", { p_action: "logout", p_status: "success", p_metadata: { portal: "admin" } }).catch(() => {});
+    supabase.rpc("log_auth_event", { p_action: "logout", p_status: "success", p_metadata: { portal: "admin" } }).then(null, () => {});
     await supabase.auth.signOut();
     window.location.href = "/";
   };

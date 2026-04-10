@@ -845,18 +845,18 @@ function MechanicAuth({ onLogin }) {
     setLoading(false);
     if (err || !data?.session) {
       setError(err?.message || "Invalid credentials.");
-      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "mechanic" } }).catch(() => {});
+      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "mechanic" } }).then(null, () => {});
       return;
     }
     const { data: mechData, error: mechErr } = await supabase
       .from("mechanics").select("id, email, name, display_name").eq("id", data.session.user.id).single();
     if (mechErr || !mechData) {
-      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "mechanic", reason: "not_mechanic" } }).catch(() => {});
+      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "mechanic", reason: "not_mechanic" } }).then(null, () => {});
       await supabase.auth.signOut();
       setError("Access denied. This account does not have mechanic privileges.");
       return;
     }
-    supabase.rpc("log_auth_event", { p_action: "login_success", p_status: "success", p_metadata: { portal: "mechanic" } }).catch(() => {});
+    supabase.rpc("log_auth_event", { p_action: "login_success", p_status: "success", p_metadata: { portal: "mechanic" } }).then(null, () => {});
     onLogin(data.session, mechData);
   };
 
@@ -921,7 +921,7 @@ export default function MechanicApp() {
   const applyUpdates = () => { setHasUpdates(false); setRefreshKey(k => k + 1); };
 
   const handleLogout = async () => {
-    supabase.rpc("log_auth_event", { p_action: "logout", p_status: "success", p_metadata: { portal: "mechanic" } }).catch(() => {});
+    supabase.rpc("log_auth_event", { p_action: "logout", p_status: "success", p_metadata: { portal: "mechanic" } }).then(null, () => {});
     await supabase.auth.signOut();
     window.location.href = "/";
   };

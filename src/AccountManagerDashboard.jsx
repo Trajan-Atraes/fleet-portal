@@ -2236,7 +2236,7 @@ function AMAuth({ onLogin }) {
     setLoading(false);
     if (err || !data?.session) {
       setError(err?.message || "Invalid credentials.");
-      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "account_manager" } }).catch(() => {});
+      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "account_manager" } }).then(null, () => {});
       return;
     }
     const { data: amData, error: amErr } = await supabase
@@ -2245,12 +2245,12 @@ function AMAuth({ onLogin }) {
       .eq("id", data.session.user.id)
       .single();
     if (amErr || !amData) {
-      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "account_manager", reason: "not_am" } }).catch(() => {});
+      supabase.rpc("log_auth_event", { p_action: "login_failure", p_status: "failure", p_metadata: { email, portal: "account_manager", reason: "not_am" } }).then(null, () => {});
       await supabase.auth.signOut();
       setError("Access denied. This account does not have account manager privileges.");
       return;
     }
-    supabase.rpc("log_auth_event", { p_action: "login_success", p_status: "success", p_metadata: { portal: "account_manager" } }).catch(() => {});
+    supabase.rpc("log_auth_event", { p_action: "login_success", p_status: "success", p_metadata: { portal: "account_manager" } }).then(null, () => {});
     onLogin(data.session, amData.display_name || null);
   };
 
@@ -2320,7 +2320,7 @@ export default function AccountManagerApp() {
   const applyUpdates = () => { setHasUpdates(false); setRefreshKey(k => k + 1); };
 
   const handleLogout = async () => {
-    supabase.rpc("log_auth_event", { p_action: "logout", p_status: "success", p_metadata: { portal: "account_manager" } }).catch(() => {});
+    supabase.rpc("log_auth_event", { p_action: "logout", p_status: "success", p_metadata: { portal: "account_manager" } }).then(null, () => {});
     await supabase.auth.signOut();
     window.location.href = "/";
   };
